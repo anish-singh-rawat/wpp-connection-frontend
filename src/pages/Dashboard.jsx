@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Smartphone, CheckCircle, AlertCircle, Trash2, Send, ListOrdered, RefreshCw, PlusCircle } from 'lucide-react';
 import { listDevices, deleteDevice } from '../api';
 import StatusBadge from '../components/StatusBadge';
 import toast from 'react-hot-toast';
 
-export default function Dashboard({ onNav, onSelectDevice }) {
+export default function Dashboard() {
+  const navigate = useNavigate();
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(null);
@@ -78,7 +80,7 @@ export default function Dashboard({ onNav, onSelectDevice }) {
             <button className="btn btn-secondary btn-sm" onClick={load}>
               <RefreshCw size={14} /> Refresh
             </button>
-            <button className="btn btn-primary btn-sm" onClick={() => onNav('add-device')}>
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('/add-device')}>
               <PlusCircle size={14} /> Add Device
             </button>
           </div>
@@ -90,7 +92,7 @@ export default function Dashboard({ onNav, onSelectDevice }) {
           <div className="empty-state">
             <Smartphone size={48} />
             <p>No devices yet. Add your first device to get started.</p>
-            <button className="btn btn-primary" onClick={() => onNav('add-device')}>
+            <button className="btn btn-primary" onClick={() => navigate('/add-device')}>
               <PlusCircle size={16} /> Add Device
             </button>
           </div>
@@ -115,7 +117,7 @@ export default function Dashboard({ onNav, onSelectDevice }) {
                       <span>Session:</span>
                       <span className="mono">{d.session}</span>
                     </div>
-                    <div className="flex gap-2 items-center text-sm text-muted mt-4" style={{ marginTop: 6 }}>
+                    <div className="flex gap-2 items-center text-sm text-muted" style={{ marginTop: 6 }}>
                       <span>Created:</span>
                       <span>{new Date(d.createdAt).toLocaleDateString()}</span>
                     </div>
@@ -125,20 +127,20 @@ export default function Dashboard({ onNav, onSelectDevice }) {
                     <button
                       className="btn btn-primary btn-sm"
                       disabled={!d.isReady}
-                      onClick={() => { onSelectDevice(d); onNav('send'); }}
+                      onClick={() => navigate('/send', { state: { device: d } })}
                     >
                       <Send size={13} /> Send
                     </button>
                     <button
                       className="btn btn-secondary btn-sm"
-                      onClick={() => { onSelectDevice(d); onNav('queue'); }}
+                      onClick={() => navigate('/queue', { state: { device: d } })}
                     >
                       <ListOrdered size={13} /> Queue
                     </button>
                     {!d.isReady && (
                       <button
                         className="btn btn-secondary btn-sm"
-                        onClick={() => { onSelectDevice(d); onNav('add-device'); }}
+                        onClick={() => navigate(`/add-device/${d.token}`, { state: { device: d } })}
                       >
                         Scan QR
                       </button>
@@ -149,7 +151,9 @@ export default function Dashboard({ onNav, onSelectDevice }) {
                       onClick={() => handleDelete(d.token, d.label)}
                       style={{ marginLeft: 'auto' }}
                     >
-                      {deleting === d.token ? <span className="spinner" style={{ width: 13, height: 13 }} /> : <Trash2 size={13} />}
+                      {deleting === d.token
+                        ? <span className="spinner" style={{ width: 13, height: 13 }} />
+                        : <Trash2 size={13} />}
                     </button>
                   </div>
                 </div>

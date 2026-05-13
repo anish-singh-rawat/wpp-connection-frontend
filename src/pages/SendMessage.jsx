@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Send, CheckCircle, AlertCircle } from 'lucide-react';
 import { listDevices, sendMessage, formatNumber } from '../api';
 import toast from 'react-hot-toast';
 
-export default function SendMessage({ selectedDevice }) {
-  const [devices, setDevices]   = useState([]);
-  const [token, setToken]       = useState(selectedDevice?.token || '');
-  const [number, setNumber]     = useState('');
-  const [message, setMessage]   = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [result, setResult]     = useState(null); // { success, data }
+export default function SendMessage() {
+  const location = useLocation();
+  const selectedDevice = location.state?.device || null;
+
+  const [devices, setDevices] = useState([]);
+  const [token, setToken]     = useState(selectedDevice?.token || '');
+  const [number, setNumber]   = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult]   = useState(null);
 
   useEffect(() => {
     listDevices()
@@ -19,12 +23,12 @@ export default function SendMessage({ selectedDevice }) {
 
   useEffect(() => {
     if (selectedDevice?.token) setToken(selectedDevice.token);
-  }, [selectedDevice]);
+  }, [selectedDevice?.token]);
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!token) return toast.error('Select a device first.');
-    if (!number.trim()) return toast.error('Enter a phone number.');
+    if (!token)          return toast.error('Select a device first.');
+    if (!number.trim())  return toast.error('Enter a phone number.');
     if (!message.trim()) return toast.error('Enter a message.');
 
     setLoading(true);
@@ -47,15 +51,17 @@ export default function SendMessage({ selectedDevice }) {
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
       <div className="card">
         <div className="card-header">
-          <span className="card-title"><Send size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />Send Message</span>
+          <span className="card-title">
+            <Send size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+            Send Message
+          </span>
         </div>
         <div className="card-body">
           {result && (
             <div className={`alert ${result.success ? 'alert-success' : 'alert-error'}`}>
               {result.success
                 ? <><CheckCircle size={16} /> Message sent to {result.data?.result?.number}</>
-                : <><AlertCircle size={16} /> {result.error}</>
-              }
+                : <><AlertCircle size={16} /> {result.error}</>}
             </div>
           )}
 
@@ -111,7 +117,9 @@ export default function SendMessage({ selectedDevice }) {
               type="submit"
               disabled={loading || !token}
             >
-              {loading ? <><span className="spinner" /> Sending…</> : <><Send size={16} /> Send Message</>}
+              {loading
+                ? <><span className="spinner" /> Sending…</>
+                : <><Send size={16} /> Send Message</>}
             </button>
           </form>
         </div>

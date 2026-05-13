@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Inbox as InboxIcon, RefreshCw, MessageCircle } from 'lucide-react';
 import { listDevices, getMessages } from '../api';
 import toast from 'react-hot-toast';
@@ -33,7 +34,10 @@ function avatarColor(from = '') {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-export default function Inbox({ selectedDevice }) {
+export default function Inbox() {
+  const location = useLocation();
+  const selectedDevice = location.state?.device || null;
+
   const [devices, setDevices]   = useState([]);
   const [token, setToken]       = useState(selectedDevice?.token || '');
   const [limit, setLimit]       = useState(50);
@@ -48,7 +52,7 @@ export default function Inbox({ selectedDevice }) {
 
   useEffect(() => {
     if (selectedDevice?.token) setToken(selectedDevice.token);
-  }, [selectedDevice]);
+  }, [selectedDevice?.token]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -65,7 +69,6 @@ export default function Inbox({ selectedDevice }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-refresh every 10s
   useEffect(() => {
     const id = setInterval(load, 10000);
     return () => clearInterval(id);
@@ -135,14 +138,11 @@ export default function Inbox({ selectedDevice }) {
         ) : (
           <div className="inbox-list">
             {messages.map((msg, i) => {
-              const from = msg.from || '';
+              const from   = msg.from || '';
               const number = from.replace('@c.us', '');
               return (
                 <div key={i} className="inbox-item">
-                  <div
-                    className="inbox-avatar"
-                    style={{ background: avatarColor(from) }}
-                  >
+                  <div className="inbox-avatar" style={{ background: avatarColor(from) }}>
                     {avatarLetter(from)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>

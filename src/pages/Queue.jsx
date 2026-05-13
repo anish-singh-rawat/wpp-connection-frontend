@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ListOrdered, RefreshCw, Clock, CheckCircle, XCircle, Loader, AlertTriangle } from 'lucide-react';
 import { listDevices, getQueue } from '../api';
 import StatusBadge from '../components/StatusBadge';
@@ -14,13 +15,15 @@ function JobStatusIcon({ status }) {
   return <AlertTriangle size={15} color="var(--yellow)" />;
 }
 
-export default function Queue({ selectedDevice }) {
-  const [devices, setDevices]   = useState([]);
-  const [token, setToken]       = useState(selectedDevice?.token || '');
-  const [filter, setFilter]     = useState('all');
-  const [jobs, setJobs]         = useState([]);
-  const [loading, setLoading]   = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+export default function Queue() {
+  const location = useLocation();
+  const selectedDevice = location.state?.device || null;
+
+  const [devices, setDevices] = useState([]);
+  const [token, setToken]     = useState(selectedDevice?.token || '');
+  const [filter, setFilter]   = useState('all');
+  const [jobs, setJobs]       = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     listDevices()
@@ -30,7 +33,7 @@ export default function Queue({ selectedDevice }) {
 
   useEffect(() => {
     if (selectedDevice?.token) setToken(selectedDevice.token);
-  }, [selectedDevice]);
+  }, [selectedDevice?.token]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -47,25 +50,23 @@ export default function Queue({ selectedDevice }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-refresh while jobs are active
   useEffect(() => {
-    if (!autoRefresh) return;
     const hasPending = jobs.some((j) => j.status === 'pending' || j.status === 'sending');
     if (!hasPending) return;
     const id = setInterval(load, 5000);
     return () => clearInterval(id);
-  }, [jobs, autoRefresh, load]);
+  }, [jobs, load]);
 
-  const total   = jobs.length;
-  const sent    = jobs.filter((j) => j.status === 'sent').length;
-  const failed  = jobs.filter((j) => j.status === 'failed').length;
-  const pending = jobs.filter((j) => j.status === 'pending' || j.status === 'sending').length;
+  const total    = jobs.length;
+  const sent     = jobs.filter((j) => j.status === 'sent').length;
+  const failed   = jobs.filter((j) => j.status === 'failed').length;
+  const pending  = jobs.filter((j) => j.status === 'pending' || j.status === 'sending').length;
   const progress = total > 0 ? Math.round((sent / total) * 100) : 0;
 
   return (
     <div>
       {/* Controls */}
-      <div className="card mb-6" style={{ marginBottom: 20 }}>
+      <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-body" style={{ padding: '16px 22px' }}>
           <div className="flex gap-3 items-center" style={{ flexWrap: 'wrap' }}>
             <div style={{ flex: '1 1 200px' }}>
@@ -104,9 +105,9 @@ export default function Queue({ selectedDevice }) {
 
       {/* Progress summary */}
       {token && total > 0 && (
-        <div className="card mb-6" style={{ marginBottom: 20 }}>
+        <div className="card" style={{ marginBottom: 20 }}>
           <div className="card-body">
-            <div className="flex gap-4 items-center mb-4" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
+            <div className="flex gap-4 items-center" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
               <div className="stat-card" style={{ flex: '1 1 100px', padding: '12px 16px' }}>
                 <div className="stat-icon green"><CheckCircle size={18} /></div>
                 <div><div className="stat-value" style={{ fontSize: 20 }}>{sent}</div><div className="stat-label">Sent</div></div>

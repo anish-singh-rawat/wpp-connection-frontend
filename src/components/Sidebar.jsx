@@ -1,21 +1,22 @@
 import { useEffect, useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, PlusCircle, Send, Users, ListOrdered,
-  Inbox, MessageSquare, Wifi, WifiOff,
+  Inbox, MessageSquare,
 } from 'lucide-react';
 import { checkHealth } from '../api';
 
 const NAV = [
-  { label: 'Dashboard',   icon: LayoutDashboard, page: 'dashboard' },
-  { label: 'Add Device',  icon: PlusCircle,       page: 'add-device' },
-  { label: 'Send Message',icon: Send,             page: 'send' },
-  { label: 'Bulk Send',   icon: Users,            page: 'bulk' },
-  { label: 'Queue',       icon: ListOrdered,      page: 'queue' },
-  { label: 'Inbox',       icon: Inbox,            page: 'inbox' },
+  { label: 'Dashboard',    icon: LayoutDashboard, to: '/' },
+  { label: 'Add Device',   icon: PlusCircle,      to: '/add-device' },
+  { label: 'Send Message', icon: Send,            to: '/send' },
+  { label: 'Bulk Send',    icon: Users,           to: '/bulk' },
+  { label: 'Queue',        icon: ListOrdered,     to: '/queue' },
+  { label: 'Inbox',        icon: Inbox,           to: '/inbox' },
 ];
 
-export default function Sidebar({ current, onNav }) {
-  const [health, setHealth] = useState(null); // null | 'ok' | 'fail'
+export default function Sidebar() {
+  const [health, setHealth] = useState(null); 
 
   useEffect(() => {
     const ping = async () => {
@@ -45,15 +46,16 @@ export default function Sidebar({ current, onNav }) {
 
       <nav className="sidebar-nav">
         <div className="nav-section-label">Navigation</div>
-        {NAV.map(({ label, icon: Icon, page }) => (
-          <button
-            key={page}
-            className={`nav-item${current === page ? ' active' : ''}`}
-            onClick={() => onNav(page)}
+        {NAV.map(({ label, icon: Icon, to }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/'}
+            className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
           >
             <Icon size={18} />
             <span>{label}</span>
-          </button>
+          </NavLink>
         ))}
       </nav>
 

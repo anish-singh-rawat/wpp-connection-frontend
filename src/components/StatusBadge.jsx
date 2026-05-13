@@ -12,7 +12,6 @@ const STATUS_LABELS = {
   duplicate:    'Duplicate',
 };
 
-// Normalize status string to a CSS-safe class key
 function statusClass(status = '') {
   if (!status) return 'disconnected';
   const s = status.toLowerCase();

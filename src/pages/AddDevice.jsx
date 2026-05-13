@@ -1,23 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { CheckCircle, Smartphone, QrCode, Wifi, RefreshCw } from 'lucide-react';
 import { createDevice, getSSEUrl, getQRImageUrl } from '../api';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Create', 'Scan QR', 'Connected'];
 
-export default function AddDevice({ prefill, onNav }) {
-  const [step, setStep]       = useState(prefill ? 1 : 0);
+export default function AddDevice() {
+  const navigate  = useNavigate();
+  const { token: routeToken } = useParams();   
+  const location  = useLocation();
+  const prefill   = location.state?.device || null; 
+
+  const [step, setStep]       = useState(() => {
+    if (prefill?.isReady) return 2;
+    if (prefill || routeToken) return 1;
+    return 0;
+  });
   const [label, setLabel]     = useState('');
   const [device, setDevice]   = useState(prefill || null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus]   = useState(prefill?.status || '');
-  const [qrSrc, setQrSrc]     = useState(null);   
-  const [qrError, setQrError] = useState(false);  
+  const [qrSrc, setQrSrc]     = useState(null);
+  const [qrError, setQrError] = useState(false);
   const esRef = useRef(null);
-
-  useEffect(() => {
-    if (prefill?.isReady) setStep(2);
-  }, [prefill]);
 
   useEffect(() => {
     if (!device?.token || step !== 1) return;
@@ -65,9 +71,7 @@ export default function AddDevice({ prefill, onNav }) {
     es.addEventListener('qr', handleMsg);
     es.addEventListener('connected', handleMsg);
 
-    es.onerror = () => {
-      setQrError(true);
-    };
+    es.onerror = () => setQrError(true);
 
     return () => es.close();
   }, [device?.token, device?.status, step]);
@@ -79,12 +83,8 @@ export default function AddDevice({ prefill, onNav }) {
       const url = `${getQRImageUrl(device.token)}?t=${Date.now()}`;
       try {
         const res = await fetch(url, { method: 'HEAD' });
-        if (res.ok && res.status === 200) {
-          setQrSrc(url);
-        }
-      } catch (err) {
-        console.log("error : ", err)
-      }
+        if (res.ok && res.status === 200) setQrSrc(url);
+      } catch (_) {}
     };
 
     pollImage();
@@ -99,6 +99,7 @@ export default function AddDevice({ prefill, onNav }) {
       const data = await createDevice(label.trim());
       setDevice(data.device);
       setStep(1);
+      navigate(`/add-device/${data.device.token}`, { replace: true, state: { device: data.device } });
       toast.success('Device created! Scan the QR code below.');
     } catch (err) {
       toast.error(err.message);
@@ -137,6 +138,7 @@ export default function AddDevice({ prefill, onNav }) {
         ))}
       </div>
 
+      {/* ── Step 0 — Create ─────────────────────────────────────────────── */}
       {step === 0 && (
         <div className="card">
           <div className="card-header">
@@ -193,47 +195,33 @@ export default function AddDevice({ prefill, onNav }) {
               </span>
             </div>
 
-            {/* QR display area */}
             <div className="qr-display">
               {!qrSrc ? (
-                /* Waiting for QR */
                 <div className="qr-waiting">
                   <div className="spinner spinner-lg" />
                   <p className="text-muted text-sm" style={{ marginTop: 12 }}>
-                    {status === 'launching' && 'Starting WhatsApp session…'}
-                    {status?.startsWith('loading') && `Loading session…`}
-                    {status === 'qr_pending' && 'Generating QR code…'}
-                    {status === 'qr_ready' && 'Loading QR image…'}
-                    {(!status || status === '') && 'Connecting to server…'}
+                    {status === 'launching'            && 'Starting WhatsApp session…'}
+                    {status?.startsWith('loading')     && 'Loading session…'}
+                    {status === 'qr_pending'           && 'Generating QR code…'}
+                    {status === 'qr_ready'             && 'Loading QR image…'}
+                    {(!status || status === '')        && 'Connecting to server…'}
                   </p>
                 </div>
               ) : (
-                /* QR image — from SSE base64 or fallback URL */
                 <img
                   src={qrSrc}
                   alt="WhatsApp QR Code"
                   className="qr-img"
-                  onError={() => {
-                    // Image URL failed — clear and retry via SSE
-                    setQrSrc(null);
-                    setQrError(true);
-                  }}
+                  onError={() => { setQrSrc(null); setQrError(true); }}
                 />
               )}
             </div>
 
-            <div
-              className="flex items-center gap-2"
-              style={{ marginTop: 14, justifyContent: 'center' }}
-            >
+            <div className="flex items-center gap-2" style={{ marginTop: 14, justifyContent: 'center' }}>
               <span className="text-muted text-sm">
                 {qrSrc ? 'QR refreshes automatically.' : 'Waiting for QR…'}
               </span>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={handleRefreshQR}
-                title="Force refresh QR"
-              >
+              <button className="btn btn-secondary btn-sm" onClick={handleRefreshQR} title="Force refresh QR">
                 <RefreshCw size={13} /> Refresh
               </button>
             </div>
@@ -259,10 +247,10 @@ export default function AddDevice({ prefill, onNav }) {
               {device?.label || 'Your device'} is now ready to send and receive messages.
             </p>
             <div className="flex gap-3" style={{ justifyContent: 'center' }}>
-              <button className="btn btn-primary" onClick={() => onNav('send')}>
+              <button className="btn btn-primary" onClick={() => navigate('/send', { state: { device } })}>
                 Send Message
               </button>
-              <button className="btn btn-secondary" onClick={() => onNav('dashboard')}>
+              <button className="btn btn-secondary" onClick={() => navigate('/')}>
                 Dashboard
               </button>
             </div>

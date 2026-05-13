@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Users, Upload, Send, CheckCircle, AlertCircle, FileText } from 'lucide-react';
 import { listDevices, bulkSend, bulkSendCSV, parseNumbers } from '../api';
 import toast from 'react-hot-toast';
 
-export default function BulkSend({ selectedDevice, onNav, onSelectDevice }) {
+export default function BulkSend() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const selectedDevice = location.state?.device || null;
+
   const [tab, setTab]         = useState('manual');
   const [devices, setDevices] = useState([]);
   const [token, setToken]     = useState(selectedDevice?.token || '');
@@ -21,7 +26,7 @@ export default function BulkSend({ selectedDevice, onNav, onSelectDevice }) {
 
   useEffect(() => {
     if (selectedDevice?.token) setToken(selectedDevice.token);
-  }, [selectedDevice]);
+  }, [selectedDevice?.token]);
 
   const handleManual = async (e) => {
     e.preventDefault();
@@ -37,7 +42,7 @@ export default function BulkSend({ selectedDevice, onNav, onSelectDevice }) {
       setResult({ success: true, data });
       toast.success(`${data.queued} messages queued!`);
       const dev = devices.find((d) => d.token === token);
-      if (dev) onSelectDevice(dev);
+      navigate('/queue', { state: { device: dev || null } });
     } catch (err) {
       setResult({ success: false, error: err.message });
       toast.error(err.message);
@@ -59,7 +64,7 @@ export default function BulkSend({ selectedDevice, onNav, onSelectDevice }) {
       setResult({ success: true, data });
       toast.success(`${data.queued} messages queued from CSV!`);
       const dev = devices.find((d) => d.token === token);
-      if (dev) onSelectDevice(dev);
+      navigate('/queue', { state: { device: dev || null } });
     } catch (err) {
       setResult({ success: false, error: err.message });
       toast.error(err.message);
@@ -74,7 +79,10 @@ export default function BulkSend({ selectedDevice, onNav, onSelectDevice }) {
     <div style={{ maxWidth: 640, margin: '0 auto' }}>
       <div className="card">
         <div className="card-header">
-          <span className="card-title"><Users size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />Bulk Send</span>
+          <span className="card-title">
+            <Users size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+            Bulk Send
+          </span>
           <div className="tabs">
             <button className={`tab-btn${tab === 'manual' ? ' active' : ''}`} onClick={() => setTab('manual')}>
               Manual
@@ -99,7 +107,7 @@ export default function BulkSend({ selectedDevice, onNav, onSelectDevice }) {
                     <button
                       className="btn btn-sm btn-secondary"
                       style={{ marginLeft: 8 }}
-                      onClick={() => onNav('queue')}
+                      onClick={() => navigate('/queue', { state: { device: devices.find((d) => d.token === token) || null } })}
                     >
                       View Queue →
                     </button>
@@ -111,7 +119,7 @@ export default function BulkSend({ selectedDevice, onNav, onSelectDevice }) {
             </div>
           )}
 
-          {/* Device selector — shared */}
+          {/* Device selector */}
           <div className="form-group">
             <label className="form-label">Device</label>
             <select
@@ -169,8 +177,7 @@ export default function BulkSend({ selectedDevice, onNav, onSelectDevice }) {
               >
                 {loading
                   ? <><span className="spinner" /> Queuing…</>
-                  : <><Send size={16} /> Send to {parsedCount || '…'} Numbers</>
-                }
+                  : <><Send size={16} /> Send to {parsedCount || '…'} Numbers</>}
               </button>
             </form>
           )}
@@ -237,8 +244,7 @@ export default function BulkSend({ selectedDevice, onNav, onSelectDevice }) {
               >
                 {loading
                   ? <><span className="spinner" /> Uploading…</>
-                  : <><Upload size={16} /> Upload &amp; Send</>
-                }
+                  : <><Upload size={16} /> Upload &amp; Send</>}
               </button>
             </form>
           )}
