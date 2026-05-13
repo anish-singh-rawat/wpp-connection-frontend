@@ -36,7 +36,6 @@ export default function BulkSend({ selectedDevice, onNav, onSelectDevice }) {
       const data = await bulkSend(token, parsed, message);
       setResult({ success: true, data });
       toast.success(`${data.queued} messages queued!`);
-      // Find the device object and navigate to queue
       const dev = devices.find((d) => d.token === token);
       if (dev) onSelectDevice(dev);
     } catch (err) {

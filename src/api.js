@@ -22,27 +22,22 @@ async function request(method, path, body, isFormData = false) {
   return data;
 }
 
-// Health
 export const checkHealth = () => request('GET', '/health');
 
-// Devices
 export const createDevice = (label) => request('POST', '/devices', { label });
 export const listDevices = () => request('GET', '/devices');
 export const getDevice = (token) => request('GET', `/devices/${token}`);
 export const deleteDevice = (token) => request('DELETE', `/devices/${token}`);
 
-// QR
+export const getSSEUrl = (token) => `${BASE_URL}/devices/${token}/qrcode/events`;
+export const getQRImageUrl = (token) => `${BASE_URL}/devices/${token}/qrcode/image`;
+export const getQRStatusUrl = (token) => `${BASE_URL}/devices/${token}/qrcode/status`;
 export const getQRStatus = (token) =>
   fetch(`${BASE_URL}/devices/${token}/qrcode/status`).then((r) => r.json());
-export const getQRUrl = (token) => `${BASE_URL}/devices/${token}/qrcode`;
-export const getSSEUrl = (token) => `${BASE_URL}/devices/${token}/qrcode/events`;
 
-// Messaging
-export const sendMessage = (token, number, message) =>
-  request('POST', `/devices/${token}/send`, { number, message });
+export const sendMessage = (token, number, message) => request('POST', `/devices/${token}/send`, { number, message });
 
-export const bulkSend = (token, numbers, message) =>
-  request('POST', `/devices/${token}/bulk-send`, { numbers, message });
+export const bulkSend = (token, numbers, message) => request('POST', `/devices/${token}/bulk-send`, { numbers, message });
 
 export const bulkSendCSV = (token, file, message) => {
   const fd = new FormData();
@@ -51,18 +46,15 @@ export const bulkSendCSV = (token, file, message) => {
   return request('POST', `/devices/${token}/bulk-send/csv`, fd, true);
 };
 
-// Queue
 export const getQueue = (token, status = 'all') =>
   fetch(`${BASE_URL}/devices/${token}/queue?status=${status}`).then((r) => r.json());
 
 export const getJob = (token, jobId) =>
   fetch(`${BASE_URL}/devices/${token}/queue/${jobId}`).then((r) => r.json());
 
-// Inbox
 export const getMessages = (token, limit = 50) =>
   fetch(`${BASE_URL}/devices/${token}/messages?limit=${limit}`).then((r) => r.json());
 
-// Helpers
 export const formatNumber = (raw) => raw.replace(/\D/g, '');
 
 export const parseNumbers = (text) =>

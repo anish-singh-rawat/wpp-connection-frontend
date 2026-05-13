@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, Smartphone, QrCode, Wifi, RefreshCw } from 'lucide-react';
-import { createDevice, getSSEUrl, BASE_URL } from '../api';
+import { createDevice, getSSEUrl, getQRImageUrl } from '../api';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Create', 'Scan QR', 'Connected'];
@@ -25,10 +25,16 @@ export default function AddDevice({ prefill, onNav }) {
     setQrSrc(null);
     setQrError(false);
 
+    if (device.status === 'qr_ready') {
+      setStatus('qr_ready');
+      setQrError(true);
+      return;
+    }
+
     const es = new EventSource(getSSEUrl(device.token));
     esRef.current = es;
 
-    es.onmessage = (e) => {
+    const handleMsg = (e) => {
       try {
         const msg = JSON.parse(e.data);
 
@@ -48,24 +54,37 @@ export default function AddDevice({ prefill, onNav }) {
           es.close();
           toast.success('Device connected successfully!');
         }
-      } catch(err) {
-        console.log("error",err)
-       }
+      } catch (err) {
+        console.log('SSE parse error', err);
+      }
     };
 
+    es.onmessage = handleMsg;
+    es.addEventListener('message', handleMsg);
+    es.addEventListener('waiting', handleMsg);
+    es.addEventListener('qr', handleMsg);
+    es.addEventListener('connected', handleMsg);
+
     es.onerror = () => {
-      // SSE connection dropped — show the direct image URL as fallback
       setQrError(true);
     };
 
     return () => es.close();
-  }, [device?.token, step]);
+  }, [device?.token, device?.status, step]);
 
   useEffect(() => {
     if (!qrError || !device?.token || step !== 1) return;
 
-    const pollImage = () => {
-      setQrSrc(`${BASE_URL}/devices/${device.token}/qrcode/image?t=${Date.now()}`);
+    const pollImage = async () => {
+      const url = `${getQRImageUrl(device.token)}?t=${Date.now()}`;
+      try {
+        const res = await fetch(url, { method: 'HEAD' });
+        if (res.ok && res.status === 200) {
+          setQrSrc(url);
+        }
+      } catch (err) {
+        console.log("error : ", err)
+      }
     };
 
     pollImage();
@@ -93,7 +112,7 @@ export default function AddDevice({ prefill, onNav }) {
     setQrSrc(null);
     setQrError(false);
     setStatus('launching');
-    setDevice((d) => ({ ...d }));
+    setDevice((d) => ({ ...d, status: 'launching' }));
   };
 
   const badgeClass = status === 'qr_ready' ? 'qr_ready'
@@ -118,7 +137,6 @@ export default function AddDevice({ prefill, onNav }) {
         ))}
       </div>
 
-      {/* ── Step 0 — Create ─────────────────────────────────────────────── */}
       {step === 0 && (
         <div className="card">
           <div className="card-header">
@@ -183,8 +201,9 @@ export default function AddDevice({ prefill, onNav }) {
                   <div className="spinner spinner-lg" />
                   <p className="text-muted text-sm" style={{ marginTop: 12 }}>
                     {status === 'launching' && 'Starting WhatsApp session…'}
-                    {status?.startsWith('loading') && 'Loading session (50%)…'}
+                    {status?.startsWith('loading') && `Loading session…`}
                     {status === 'qr_pending' && 'Generating QR code…'}
+                    {status === 'qr_ready' && 'Loading QR image…'}
                     {(!status || status === '') && 'Connecting to server…'}
                   </p>
                 </div>
