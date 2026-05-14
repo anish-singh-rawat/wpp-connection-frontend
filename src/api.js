@@ -29,10 +29,11 @@ export const listDevices = () => request('GET', '/devices');
 export const getDevice = (token) => request('GET', `/devices/${token}`);
 export const deleteDevice = (token) => request('DELETE', `/devices/${token}`);
 
-export const getSSEUrl = (token) => `${BASE_URL}/devices/${token}/qrcode/events`;
+export const getSSEUrl     = (token) => `${BASE_URL}/devices/${token}/qrcode/events`;
 export const getQRImageUrl = (token) => `${BASE_URL}/devices/${token}/qrcode/image`;
+export const getQRPageUrl  = (token) => `${BASE_URL}/devices/${token}/qrcode/page`;
 export const getQRStatusUrl = (token) => `${BASE_URL}/devices/${token}/qrcode/status`;
-export const getQRStatus = (token) =>
+export const getQRStatus   = (token) =>
   fetch(`${BASE_URL}/devices/${token}/qrcode/status`).then((r) => r.json());
 
 export const sendMessage = (token, number, message) => request('POST', `/devices/${token}/send`, { number, message });
