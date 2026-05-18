@@ -14,9 +14,10 @@ export default function BulkSend() {
   const [token, setToken]     = useState(selectedDevice?.token || '');
   const [numbers, setNumbers] = useState('');
   const [message, setMessage] = useState('');
-  const [csvFile, setCsvFile] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult]   = useState(null);
+  const [csvFile, setCsvFile]           = useState(null);
+  const [csvHasMessage, setCsvHasMessage] = useState(false);
+  const [loading, setLoading]           = useState(false);
+  const [result, setResult]             = useState(null);
 
   useEffect(() => {
     listDevices()
@@ -51,11 +52,24 @@ export default function BulkSend() {
     }
   };
 
+  const handleCsvFileChange = (file) => {
+    setCsvFile(file || null);
+    setCsvHasMessage(false);
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const firstLine = (ev.target.result || '').split('\n')[0] || '';
+      const headers = firstLine.split(',').map((h) => h.trim().toLowerCase());
+      setCsvHasMessage(headers.includes('message'));
+    };
+    reader.readAsText(file.slice(0, 256));
+  };
+
   const handleCSV = async (e) => {
     e.preventDefault();
     if (!token) return toast.error('Select a device.');
     if (!csvFile) return toast.error('Select a CSV file.');
-    if (!message.trim()) return toast.error('Enter a message.');
+    if (!csvHasMessage && !message.trim()) return toast.error('Enter a message.');
 
     setLoading(true);
     setResult(null);
@@ -218,24 +232,42 @@ export default function BulkSend() {
                   type="file"
                   accept=".csv"
                   style={{ display: 'none' }}
-                  onChange={(e) => setCsvFile(e.target.files[0] || null)}
+                  onChange={(e) => handleCsvFileChange(e.target.files[0] || null)}
                 />
                 <div className="form-hint">
                   Accepted formats: single column of numbers, or CSV with a <code>number</code> / <code>phone</code> column.
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Message</label>
-                <textarea
-                  className="form-control"
-                  placeholder="Type your message here…"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={4}
-                  required
-                />
-              </div>
+              {csvHasMessage ? (
+                <div
+                  className="alert alert-success"
+                  style={{ marginBottom: 16, alignItems: 'flex-start' }}
+                >
+                  <CheckCircle size={16} style={{ marginTop: 2, flexShrink: 0 }} />
+                  <div>
+                    <strong>Message column detected</strong>
+                    <div className="text-sm" style={{ marginTop: 2 }}>
+                      Each row's <code>Message</code> value will be used — no need to type a message here.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label">Message</label>
+                  <textarea
+                    className="form-control"
+                    placeholder="Type your message here…"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    rows={4}
+                    required={!csvHasMessage}
+                  />
+                  <div className="form-hint">
+                    Tip: add a <code>Message</code> column to your CSV to send a personalised message per row.
+                  </div>
+                </div>
+              )}
 
               <button
                 className="btn btn-primary btn-lg w-full"
