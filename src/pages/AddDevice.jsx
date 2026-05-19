@@ -4,49 +4,46 @@ import { CheckCircle, Smartphone, QrCode, Wifi, RefreshCw, AlertTriangle } from 
 import { createDevice, getSSEUrl, getQRImageUrl, getQRStatus } from '../api';
 import toast from 'react-hot-toast';
 
-// Stages: idle | creating | countdown | qr | connected | error
-const STEPS         = ['Create', 'Scan QR', 'Connected'];
-const DEFAULT_EST   = 20;
-const QR_VALIDITY   = 20;
+const STEPS = ['Create', 'Scan QR', 'Connected'];
+const DEFAULT_EST = 20;
+const QR_VALIDITY = 20;
 
 function waitingLabel(status) {
-  if (!status || status === 'launching')  return 'Starting WhatsApp session…';
-  if (status.startsWith('loading'))       return `Loading WhatsApp Web… (${status.match(/\d+/)?.[0] ?? ''}%)`;
-  if (status === 'qr_pending')            return 'Generating QR code…';
-  if (status === 'retrying')              return 'Retrying…';
+  if (!status || status === 'launching') return 'Starting WhatsApp session…';
+  if (status.startsWith('loading')) return `Loading WhatsApp Web… (${status.match(/\d+/)?.[0] ?? ''}%)`;
+  if (status === 'qr_pending') return 'Generating QR code…';
+  if (status === 'retrying') return 'Retrying…';
   return status;
 }
 
 export default function AddDevice() {
-  const navigate              = useNavigate();
+  const navigate = useNavigate();
   const { token: routeToken } = useParams();
-  const location              = useLocation();
-  const prefill               = location.state?.device || null;
+  const location = useLocation();
+  const prefill = location.state?.device || null;
 
-  const [stage,      setStage]      = useState(() => {
-    if (prefill?.isReady)        return 'connected';
-    if (prefill || routeToken)   return 'countdown';
+  const [stage, setStage] = useState(() => {
+    if (prefill?.isReady) return 'connected';
+    if (prefill || routeToken) return 'countdown';
     return 'idle';
   });
-  const [label,      setLabel]      = useState('');
-  const [device,     setDevice]     = useState(prefill || null);
-  const [qrSrc,      setQrSrc]      = useState('');
-  const [countdown,  setCountdown]  = useState(DEFAULT_EST);
-  const [qrExpiry,   setQrExpiry]   = useState(QR_VALIDITY);
+  const [label, setLabel] = useState('');
+  const [device, setDevice] = useState(prefill || null);
+  const [qrSrc, setQrSrc] = useState('');
+  const [countdown, setCountdown] = useState(DEFAULT_EST);
+  const [qrExpiry, setQrExpiry] = useState(QR_VALIDITY);
   const [waitStatus, setWaitStatus] = useState('launching');
-  const [countDone,  setCountDone]  = useState(false);
+  const [countDone, setCountDone] = useState(false);
 
-  // Use refs so closures always see the latest interval IDs
-  const countRef    = useRef(null);
-  const qrRef       = useRef(null);
-  const esRef       = useRef(null);
-  const pollRef     = useRef(null);   // status polling after countdown expires
+  const countRef = useRef(null);
+  const qrRef = useRef(null);
+  const esRef = useRef(null);
+  const pollRef = useRef(null);
   const estimateRef = useRef(DEFAULT_EST);
-  // Ref mirror of stage so SSE handler always sees current stage
-  const stageRef    = useRef(stage);
+
+  const stageRef = useRef(stage);
   useEffect(() => { stageRef.current = stage; }, [stage]);
 
-  // ── stop timers ──────────────────────────────────────────────────────────
   function stopCountdown() {
     clearInterval(countRef.current);
     countRef.current = null;
@@ -60,7 +57,6 @@ export default function AddDevice() {
     pollRef.current = null;
   }
 
-  // ── start countdown ──────────────────────────────────────────────────────
   function startCountdown(from, tok) {
     estimateRef.current = from;
     stopCountdown();
@@ -72,7 +68,6 @@ export default function AddDevice() {
           clearInterval(countRef.current);
           countRef.current = null;
           setCountDone(true);
-          // Countdown expired — start polling status every 3s
           if (tok) startStatusPoll(tok);
           return 0;
         }
@@ -81,7 +76,7 @@ export default function AddDevice() {
     }, 1000);
   }
 
-  // ── start QR expiry timer ────────────────────────────────────────────────
+
   function startQrExpiry() {
     stopQrTimer();
     setQrExpiry(QR_VALIDITY);
@@ -97,8 +92,6 @@ export default function AddDevice() {
     }, 1000);
   }
 
-  // ── transition to QR stage ───────────────────────────────────────────────
-  // Extracted so both SSE handler and status-poll can call it
   function showQR(qrDataUri) {
     stopCountdown();
     stopStatusPoll();
@@ -108,7 +101,6 @@ export default function AddDevice() {
     startQrExpiry();
   }
 
-  // ── poll /qrcode/status every 3s (used after countdown expires) ──────────
   function startStatusPoll(tok) {
     stopStatusPoll();
     const poll = async () => {
@@ -128,34 +120,30 @@ export default function AddDevice() {
           const imgUrl = `${getQRImageUrl(tok)}?t=${Date.now()}`;
           showQR(imgUrl);
         }
-      } catch (_) {}
+      } catch (_) { }
     };
-    poll(); // fire immediately, then every 3s
+    poll();
     pollRef.current = setInterval(poll, 3000);
   }
 
-  // ── check current status immediately (handles already-ready QR) ──────────
   async function checkStatusNow(tok) {
     try {
       const data = await getQRStatus(tok);
       if (data.isReady) {
-        // Already connected — skip QR entirely
         stopCountdown();
         stopQrTimer();
         setStage('connected');
         return true;
       }
       if (data.hasQR) {
-        // QR already generated — fetch the image directly, don't wait for SSE
         const imgUrl = `${getQRImageUrl(tok)}?t=${Date.now()}`;
         showQR(imgUrl);
         return true;
       }
-    } catch (_) {}
+    } catch (_) { }
     return false;
   }
 
-  // ── open SSE ─────────────────────────────────────────────────────────────
   function openSSE(tok) {
     if (esRef.current) esRef.current.close();
 
@@ -171,7 +159,6 @@ export default function AddDevice() {
         }
 
         if (msg.type === 'qr') {
-          // QR arrived via SSE — use the base64 data URI directly
           showQR(msg.qr);
         }
 
@@ -196,37 +183,30 @@ export default function AddDevice() {
       }
     };
 
-    // EventSource auto-reconnects on drop.
-    // On reconnect the server re-sends the latest QR immediately.
-    es.onerror = () => {};
+    es.onerror = () => { };
   }
 
-  // ── start the full flow for a token ─────────────────────────────────────
   async function startFlow(tok, estimatedSeconds) {
     setWaitStatus('launching');
     startCountdown(estimatedSeconds, tok);
 
-    // Check immediately — QR may already be ready (e.g. page reload mid-flow)
     const alreadyReady = await checkStatusNow(tok);
     if (!alreadyReady) {
       openSSE(tok);
     } else {
-      // Still open SSE so we catch the `connected` event when user scans
       openSSE(tok);
     }
   }
 
-  // ── kick off for re-scan (prefill / routeToken) ──────────────────────────
   useEffect(() => {
     if ((prefill || routeToken) && !prefill?.isReady) {
       const tok = prefill?.token || routeToken;
       if (!tok) return;
       startFlow(tok, prefill?.estimated_qr_seconds ?? DEFAULT_EST);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── cleanup on unmount ───────────────────────────────────────────────────
+
   useEffect(() => {
     return () => {
       stopCountdown();
@@ -234,16 +214,16 @@ export default function AddDevice() {
       stopStatusPoll();
       esRef.current?.close();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, []);
 
-  // ── create device ────────────────────────────────────────────────────────
+
   async function handleCreate(e) {
     e.preventDefault();
     setStage('creating');
     try {
       const data = await createDevice(label.trim());
-      const dev  = data.device;
+      const dev = data.device;
       setDevice(dev);
 
       navigate(`/add-device/${dev.token}`, {
@@ -259,7 +239,7 @@ export default function AddDevice() {
     }
   }
 
-  // ── retry ────────────────────────────────────────────────────────────────
+
   function retry() {
     esRef.current?.close();
     stopCountdown();
@@ -271,17 +251,16 @@ export default function AddDevice() {
     setStage('idle');
   }
 
-  // ── derived UI values ────────────────────────────────────────────────────
-  const stepIndex     = (stage === 'idle' || stage === 'creating') ? 0
+
+  const stepIndex = (stage === 'idle' || stage === 'creating') ? 0
     : stage === 'connected' ? 2 : 1;
   const circumference = 2 * Math.PI * 36;
-  const ringOffset    = countDone
+  const ringOffset = countDone
     ? circumference
     : circumference * (1 - countdown / estimateRef.current);
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
-
       {/* Step indicator */}
       <div className="steps mb-6">
         {STEPS.map((s, i) => (
