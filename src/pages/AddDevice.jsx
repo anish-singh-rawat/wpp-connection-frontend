@@ -23,7 +23,8 @@ export default function AddDevice() {
   const prefill = location.state?.device || null;
 
   const [stage, setStage] = useState(() => {
-    if (prefill?.isReady) return 'connected';
+    if (prefill?.status === 'qr_ready') return 'qr';
+    if (prefill?.status === 'connected' || (prefill?.isReady && prefill?.status !== 'qr_ready')) return 'connected';
     if (prefill || routeToken) return 'countdown';
     return 'idle';
   });
@@ -106,7 +107,7 @@ export default function AddDevice() {
     const poll = async () => {
       try {
         const data = await getQRStatus(tok);
-        if (data.isReady) {
+        if (data.status === 'connected') {
           stopStatusPoll();
           stopCountdown();
           stopQrTimer();
@@ -115,7 +116,7 @@ export default function AddDevice() {
           toast.success('Device connected successfully!');
           return;
         }
-        if (data.hasQR) {
+        if (data.hasQR || data.status === 'qr_ready') {
           stopStatusPoll();
           const imgUrl = `${getQRImageUrl(tok)}?t=${Date.now()}`;
           showQR(imgUrl);
@@ -129,13 +130,13 @@ export default function AddDevice() {
   async function checkStatusNow(tok) {
     try {
       const data = await getQRStatus(tok);
-      if (data.isReady) {
+      if (data.status === 'connected') {
         stopCountdown();
         stopQrTimer();
         setStage('connected');
         return true;
       }
-      if (data.hasQR) {
+      if (data.hasQR || data.status === 'qr_ready') {
         const imgUrl = `${getQRImageUrl(tok)}?t=${Date.now()}`;
         showQR(imgUrl);
         return true;
@@ -199,9 +200,19 @@ export default function AddDevice() {
   }
 
   useEffect(() => {
-    if ((prefill || routeToken) && !prefill?.isReady) {
-      const tok = prefill?.token || routeToken;
-      if (!tok) return;
+    const tok = prefill?.token || routeToken;
+    if (!tok) return;
+
+    if (prefill?.status === 'connected') return;
+
+    if (prefill?.status === 'qr_ready') {
+      const imgUrl = `${getQRImageUrl(tok)}?t=${Date.now()}`;
+      setQrSrc(imgUrl);
+      startQrExpiry();
+      openSSE(tok);
+      return;
+    }
+    if (prefill || routeToken) {
       startFlow(tok, prefill?.estimated_qr_seconds ?? DEFAULT_EST);
     }
   }, []);

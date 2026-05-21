@@ -126,7 +126,7 @@ export default function Dashboard() {
                   <div className="device-card-footer">
                     <button
                       className="btn btn-primary btn-sm"
-                      disabled={!d.isReady}
+                      disabled={d.status !== 'connected'}
                       onClick={() => navigate('/send', { state: { device: d } })}
                     >
                       <Send size={13} /> Send
@@ -137,7 +137,7 @@ export default function Dashboard() {
                     >
                       <ListOrdered size={13} /> Queue
                     </button>
-                    {!d.isReady && (
+                    {d.status === 'qr_ready' && (
                       <button
                         className="btn btn-secondary btn-sm"
                         onClick={() => navigate(`/add-device/${d.token}`, { state: { device: d } })}
