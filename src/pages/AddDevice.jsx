@@ -1,19 +1,20 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { CheckCircle, Smartphone, QrCode, Wifi, RefreshCw, AlertTriangle } from 'lucide-react';
-import { createDevice, getSSEUrl, getQRImageUrl, getQRStatus } from '../api';
+import { createDevice, getQRImageUrl } from '../api';
+import socket from '../socket';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Create', 'Scan QR', 'Connected'];
-const DEFAULT_EST = 20;
 const QR_VALIDITY = 20;
 
 function waitingLabel(status) {
   if (!status || status === 'launching') return 'Starting WhatsApp session…';
   if (status.startsWith('loading')) return `Loading WhatsApp Web… (${status.match(/\d+/)?.[0] ?? ''}%)`;
   if (status === 'qr_pending') return 'Generating QR code…';
-  if (status === 'retrying') return 'Retrying…';
-  return status;
+  if (status === 'qr_ready')   return 'QR code ready — loading…';
+  if (status === 'retrying')   return 'Retrying…';
+  return 'Please wait…';
 }
 
 export default function AddDevice() {
@@ -23,209 +24,119 @@ export default function AddDevice() {
   const prefill = location.state?.device || null;
 
   const [stage, setStage] = useState(() => {
-    if (prefill?.status === 'qr_ready') return 'qr';
-    if (prefill?.status === 'connected' || (prefill?.isReady && prefill?.status !== 'qr_ready')) return 'connected';
-    if (prefill || routeToken) return 'countdown';
+    if (prefill?.status === 'connected') return 'connected';
+    if (prefill || routeToken) return 'waiting';
     return 'idle';
   });
-  const [label, setLabel] = useState('');
-  const [device, setDevice] = useState(prefill || null);
-  const [qrSrc, setQrSrc] = useState('');
-  const [countdown, setCountdown] = useState(DEFAULT_EST);
-  const [qrExpiry, setQrExpiry] = useState(QR_VALIDITY);
-  const [waitStatus, setWaitStatus] = useState('launching');
-  const [countDone, setCountDone] = useState(false);
 
-  const countRef = useRef(null);
-  const qrRef = useRef(null);
-  const esRef = useRef(null);
-  const pollRef = useRef(null);
-  const estimateRef = useRef(DEFAULT_EST);
+  const [label, setLabel]             = useState('');
+  const [device, setDevice]           = useState(prefill || null);
+  const [qrSrc, setQrSrc]             = useState('');
+  const [qrExpiry, setQrExpiry]       = useState(QR_VALIDITY);
+  const [waitStatus, setWaitStatus]   = useState('launching');
+  const [activeToken, setActiveToken] = useState(prefill?.token || routeToken || null);
 
-  const stageRef = useRef(stage);
+  const qrTimerRef = useRef(null);
+  const stageRef   = useRef(stage);
+  const qrWasShownRef = useRef(false);
+
   useEffect(() => { stageRef.current = stage; }, [stage]);
 
-  function stopCountdown() {
-    clearInterval(countRef.current);
-    countRef.current = null;
-  }
   function stopQrTimer() {
-    clearInterval(qrRef.current);
-    qrRef.current = null;
+    clearInterval(qrTimerRef.current);
+    qrTimerRef.current = null;
   }
-  function stopStatusPoll() {
-    clearInterval(pollRef.current);
-    pollRef.current = null;
-  }
-
-  function startCountdown(from, tok) {
-    estimateRef.current = from;
-    stopCountdown();
-    setCountdown(from);
-    setCountDone(false);
-    countRef.current = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          clearInterval(countRef.current);
-          countRef.current = null;
-          setCountDone(true);
-          if (tok) startStatusPoll(tok);
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
-  }
-
 
   function startQrExpiry() {
     stopQrTimer();
     setQrExpiry(QR_VALIDITY);
-    qrRef.current = setInterval(() => {
+    qrTimerRef.current = setInterval(() => {
       setQrExpiry((t) => {
-        if (t <= 1) {
-          clearInterval(qrRef.current);
-          qrRef.current = null;
-          return 0;
-        }
+        if (t <= 1) { clearInterval(qrTimerRef.current); qrTimerRef.current = null; return 0; }
         return t - 1;
       });
     }, 1000);
   }
 
-  function showQR(qrDataUri) {
-    stopCountdown();
-    stopStatusPoll();
-    setCountDone(false);
+  const showQR = useCallback((qrDataUri) => {
+    qrWasShownRef.current = true;
     setQrSrc(qrDataUri);
     setStage('qr');
     startQrExpiry();
-  }
-
-  function startStatusPoll(tok) {
-    stopStatusPoll();
-    const poll = async () => {
-      try {
-        const data = await getQRStatus(tok);
-        if (data.status === 'connected') {
-          stopStatusPoll();
-          stopCountdown();
-          stopQrTimer();
-          esRef.current?.close();
-          setStage('connected');
-          toast.success('Device connected successfully!');
-          return;
-        }
-        if (data.hasQR || data.status === 'qr_ready') {
-          stopStatusPoll();
-          const imgUrl = `${getQRImageUrl(tok)}?t=${Date.now()}`;
-          showQR(imgUrl);
-        }
-      } catch (_) { }
-    };
-    poll();
-    pollRef.current = setInterval(poll, 3000);
-  }
-
-  async function checkStatusNow(tok) {
-    try {
-      const data = await getQRStatus(tok);
-      if (data.status === 'connected') {
-        stopCountdown();
-        stopQrTimer();
-        setStage('connected');
-        return true;
-      }
-      if (data.hasQR || data.status === 'qr_ready') {
-        const imgUrl = `${getQRImageUrl(tok)}?t=${Date.now()}`;
-        showQR(imgUrl);
-        return true;
-      }
-    } catch (_) { }
-    return false;
-  }
-
-  function openSSE(tok) {
-    if (esRef.current) esRef.current.close();
-
-    const es = new EventSource(getSSEUrl(tok));
-    esRef.current = es;
-
-    es.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-
-        if (msg.type === 'waiting') {
-          setWaitStatus(msg.status || 'launching');
-        }
-
-        if (msg.type === 'qr') {
-          showQR(msg.qr);
-        }
-
-        if (msg.type === 'connected') {
-          stopCountdown();
-          stopQrTimer();
-          stopStatusPoll();
-          es.close();
-          setStage('connected');
-          toast.success('Device connected successfully!');
-        }
-
-        if (msg.type === 'waiting' && msg.status === 'retrying') {
-          stopCountdown();
-          stopQrTimer();
-          stopStatusPoll();
-          es.close();
-          setStage('error');
-        }
-      } catch (err) {
-        console.log('SSE parse error', err);
-      }
-    };
-
-    es.onerror = () => { };
-  }
-
-  async function startFlow(tok, estimatedSeconds) {
-    setWaitStatus('launching');
-    startCountdown(estimatedSeconds, tok);
-
-    const alreadyReady = await checkStatusNow(tok);
-    if (!alreadyReady) {
-      openSSE(tok);
-    } else {
-      openSSE(tok);
-    }
-  }
-
-  useEffect(() => {
-    const tok = prefill?.token || routeToken;
-    if (!tok) return;
-
-    if (prefill?.status === 'connected') return;
-
-    if (prefill?.status === 'qr_ready') {
-      const imgUrl = `${getQRImageUrl(tok)}?t=${Date.now()}`;
-      setQrSrc(imgUrl);
-      startQrExpiry();
-      openSSE(tok);
-      return;
-    }
-    if (prefill || routeToken) {
-      startFlow(tok, prefill?.estimated_qr_seconds ?? DEFAULT_EST);
-    }
   }, []);
 
-
   useEffect(() => {
-    return () => {
-      stopCountdown();
-      stopQrTimer();
-      stopStatusPoll();
-      esRef.current?.close();
+    if (!activeToken) return;
+
+    socket.emit('join:device', activeToken);
+
+    const onDeviceQR = ({ token, qr }) => {
+      if (token !== activeToken) return;
+      if (stageRef.current === 'connected') return;
+      console.log('[Socket] device:qr received');
+      showQR(qr);
     };
 
+    const onDeviceStatus = ({ token, status }) => {
+      if (token !== activeToken) return;
+      if (stageRef.current === 'connected') return;
+
+      console.log('[Socket] device:status →', status, '| stage:', stageRef.current, '| qrShown:', qrWasShownRef.current);
+
+      setWaitStatus(status);
+
+      if (status === 'connected') {
+        if (!qrWasShownRef.current) {
+          console.warn('[Socket] Ignoring premature connected — QR not yet shown');
+          return;
+        }
+        stopQrTimer();
+        setStage('connected');
+        toast.success('Device connected successfully!');
+        return;
+      }
+
+      if (status === 'retrying') {
+        stopQrTimer();
+        setStage('error');
+        return;
+      }
+      
+      if (status === 'qr_ready' && stageRef.current !== 'qr') {
+        showQR(`${getQRImageUrl(activeToken)}?t=${Date.now()}`);
+      }
+    };
+
+    const onDeviceConnected = ({ token }) => {
+      if (token !== activeToken) return;
+      if (stageRef.current === 'connected') return;
+
+      console.log('[Socket] device:connected | stage:', stageRef.current, '| qrShown:', qrWasShownRef.current);
+
+      if (!qrWasShownRef.current) {
+        console.warn('[Socket] Ignoring premature device:connected — QR not yet shown');
+        return;
+      }
+      stopQrTimer();
+      setStage('connected');
+      toast.success('Device connected successfully!');
+    };
+
+    socket.on('device:qr',        onDeviceQR);
+    socket.on('device:status',    onDeviceStatus);
+    socket.on('device:connected', onDeviceConnected);
+
+    return () => {
+      socket.emit('leave:device', activeToken);
+      socket.off('device:qr',        onDeviceQR);
+      socket.off('device:status',    onDeviceStatus);
+      socket.off('device:connected', onDeviceConnected);
+    };
+  }, [activeToken, showQR]);
+
+
+  useEffect(() => {
+    return () => { stopQrTimer(); };
   }, []);
 
 
@@ -236,28 +147,20 @@ export default function AddDevice() {
       const data = await createDevice(label.trim());
       const dev = data.device;
       setDevice(dev);
-
-      navigate(`/add-device/${dev.token}`, {
-        replace: true,
-        state: { device: dev },
-      });
-
-      setStage('countdown');
-      await startFlow(dev.token, dev.estimated_qr_seconds ?? DEFAULT_EST);
+      window.history.replaceState({ device: dev }, '', `/add-device/${dev.token}`);
+      setActiveToken(dev.token);
+      setWaitStatus('launching');
+      setStage('waiting');
     } catch (err) {
       toast.error(err.message);
       setStage('idle');
     }
   }
 
-
   function retry() {
-    esRef.current?.close();
-    stopCountdown();
     stopQrTimer();
-    stopStatusPoll();
+    qrWasShownRef.current = false;
     setQrSrc('');
-    setCountDone(false);
     setWaitStatus('launching');
     setStage('idle');
   }
@@ -265,14 +168,9 @@ export default function AddDevice() {
 
   const stepIndex = (stage === 'idle' || stage === 'creating') ? 0
     : stage === 'connected' ? 2 : 1;
-  const circumference = 2 * Math.PI * 36;
-  const ringOffset = countDone
-    ? circumference
-    : circumference * (1 - countdown / estimateRef.current);
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
-      {/* Step indicator */}
       <div className="steps mb-6">
         {STEPS.map((s, i) => (
           <div key={s} className={`step${stepIndex === i ? ' active' : ''}${stepIndex > i ? ' done' : ''}`}>
@@ -284,7 +182,6 @@ export default function AddDevice() {
         ))}
       </div>
 
-      {/* ── idle ─────────────────────────────────────────────────────────── */}
       {stage === 'idle' && (
         <div className="card">
           <div className="card-header">
@@ -315,7 +212,6 @@ export default function AddDevice() {
         </div>
       )}
 
-      {/* ── creating ─────────────────────────────────────────────────────── */}
       {stage === 'creating' && (
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
@@ -325,51 +221,21 @@ export default function AddDevice() {
         </div>
       )}
 
-      {/* ── countdown ────────────────────────────────────────────────────── */}
-      {stage === 'countdown' && (
+      {stage === 'waiting' && (
         <div className="card">
           <div className="card-header">
             <span className="card-title">
               <QrCode size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
               Preparing QR Code
             </span>
-            <span className="badge launching">
-              <span className="badge-dot" />
-              Starting…
-            </span>
           </div>
-          <div className="card-body" style={{ textAlign: 'center', padding: '40px 24px' }}>
-            {!countDone ? (
-              <svg width={96} height={96} style={{ display: 'block', margin: '0 auto 20px' }}>
-                <circle cx={48} cy={48} r={36} fill="none" stroke="var(--border)" strokeWidth={6} />
-                <circle
-                  cx={48} cy={48} r={36}
-                  fill="none" stroke="var(--green)" strokeWidth={6} strokeLinecap="round"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={ringOffset}
-                  transform="rotate(-90 48 48)"
-                  style={{ transition: 'stroke-dashoffset 0.9s linear' }}
-                />
-                <text x={48} y={53} textAnchor="middle" fontSize={22} fontWeight={700} fill="var(--text)">
-                  {countdown}
-                </text>
-              </svg>
-            ) : (
-              <div className="spinner spinner-lg" style={{ margin: '0 auto 20px' }} />
-            )}
-            <p className="text-muted" style={{ marginBottom: 6 }}>
-              {waitingLabel(waitStatus)}
-            </p>
-            <p className="text-muted text-sm">
-              {countDone
-                ? 'Taking a bit longer than usual — almost there…'
-                : `Usually ready in about ${estimateRef.current}s`}
-            </p>
+          <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
+            <div className="spinner spinner-lg" style={{ margin: '0 auto 20px' }} />
+            <p className="text-muted">{waitingLabel(waitStatus)}</p>
           </div>
         </div>
       )}
 
-      {/* ── qr ───────────────────────────────────────────────────────────── */}
       {stage === 'qr' && (
         <div className="card">
           <div className="card-header">
@@ -389,11 +255,9 @@ export default function AddDevice() {
                 Open <strong>WhatsApp → Linked Devices → Link a Device</strong> and scan the QR below.
               </span>
             </div>
-
             <div className="qr-display">
               <img src={qrSrc} alt="Scan with WhatsApp" className="qr-img" />
             </div>
-
             <div className="flex items-center gap-2" style={{ marginTop: 14, justifyContent: 'center' }}>
               <span className="text-muted text-sm">
                 QR refreshes in{' '}
@@ -406,7 +270,6 @@ export default function AddDevice() {
         </div>
       )}
 
-      {/* ── error ────────────────────────────────────────────────────────── */}
       {stage === 'error' && (
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
@@ -429,7 +292,6 @@ export default function AddDevice() {
         </div>
       )}
 
-      {/* ── connected ────────────────────────────────────────────────────── */}
       {stage === 'connected' && (
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
@@ -456,7 +318,6 @@ export default function AddDevice() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

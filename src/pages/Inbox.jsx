@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Inbox as InboxIcon, RefreshCw, MessageCircle } from 'lucide-react';
 import { listDevices, getMessages } from '../api';
+import socket from '../socket';
 import toast from 'react-hot-toast';
 
 function timeAgo(ts) {
@@ -44,6 +45,8 @@ export default function Inbox() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading]   = useState(false);
 
+  const [sessionName, setSessionName] = useState(selectedDevice?.session || '');
+
   useEffect(() => {
     listDevices()
       .then((d) => setDevices(d.devices || []))
@@ -53,6 +56,11 @@ export default function Inbox() {
   useEffect(() => {
     if (selectedDevice?.token) setToken(selectedDevice.token);
   }, [selectedDevice?.token]);
+
+  useEffect(() => {
+    const found = devices.find((d) => d.token === token);
+    setSessionName(found?.session || '');
+  }, [token, devices]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -70,13 +78,25 @@ export default function Inbox() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    const id = setInterval(load, 10000);
-    return () => clearInterval(id);
-  }, [load]);
+    if (!sessionName) return;
+
+    const onInboxMessage = ({ sessionName: sn, message }) => {
+      if (sn !== sessionName) return;
+      setMessages((prev) => {
+        const isDup = prev.some(
+          (m) => m.from === message.from && m.body === message.body && m.receivedAt === message.receivedAt
+        );
+        if (isDup) return prev;
+        return [message, ...prev].slice(0, limit);
+      });
+    };
+
+    socket.on('inbox:message', onInboxMessage);
+    return () => socket.off('inbox:message', onInboxMessage);
+  }, [sessionName, limit]);
 
   return (
     <div>
-      {/* Controls */}
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-body" style={{ padding: '16px 22px' }}>
           <div className="flex gap-3 items-center" style={{ flexWrap: 'wrap' }}>
@@ -113,8 +133,7 @@ export default function Inbox() {
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="card">
+\      <div className="card">
         <div className="card-header">
           <span className="card-title">
             <InboxIcon size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
@@ -123,7 +142,9 @@ export default function Inbox() {
               <span className="badge sent" style={{ marginLeft: 8 }}>{messages.length}</span>
             )}
           </span>
-          <span className="text-muted text-sm">Auto-refreshes every 10s</span>
+          <span className="text-muted text-sm">
+            {sessionName ? 'Live updates via socket' : 'Select a device'}
+          </span>
         </div>
 
         {!token ? (

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Smartphone, CheckCircle, AlertCircle, Trash2, Send, ListOrdered, RefreshCw, PlusCircle } from 'lucide-react';
 import { listDevices, deleteDevice } from '../api';
 import StatusBadge from '../components/StatusBadge';
+import socket from '../socket';
 import toast from 'react-hot-toast';
 
 export default function Dashboard() {
@@ -24,8 +25,29 @@ export default function Dashboard() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 10000);
-    return () => clearInterval(id);
+    const onDevicesUpdate = () => load();
+
+    const onDeviceStatus = ({ token, status, isReady }) => {
+      setDevices((prev) =>
+        prev.map((d) => (d.token === token ? { ...d, status, isReady } : d))
+      );
+    };
+
+    const onDeviceConnected = ({ token }) => {
+      setDevices((prev) =>
+        prev.map((d) => (d.token === token ? { ...d, status: 'connected', isReady: true } : d))
+      );
+    };
+
+    socket.on('devices:update',   onDevicesUpdate);
+    socket.on('device:status',    onDeviceStatus);
+    socket.on('device:connected', onDeviceConnected);
+
+    return () => {
+      socket.off('devices:update',   onDevicesUpdate);
+      socket.off('device:status',    onDeviceStatus);
+      socket.off('device:connected', onDeviceConnected);
+    };
   }, [load]);
 
   const handleDelete = async (token, label) => {
@@ -47,7 +69,6 @@ export default function Dashboard() {
 
   return (
     <div>
-      {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon green"><Smartphone size={22} /></div>
@@ -72,7 +93,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Device list */}
       <div className="card">
         <div className="card-header">
           <span className="card-title">Devices</span>

@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { ListOrdered, RefreshCw, Clock, CheckCircle, XCircle, Loader, AlertTriangle } from 'lucide-react';
 import { listDevices, getQueue } from '../api';
 import StatusBadge from '../components/StatusBadge';
+import socket from '../socket';
 import toast from 'react-hot-toast';
 
 const STATUS_FILTERS = ['all', 'pending', 'sending', 'sent', 'failed'];
@@ -25,6 +26,8 @@ export default function Queue() {
   const [jobs, setJobs]       = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const [sessionName, setSessionName] = useState(selectedDevice?.session || '');
+
   useEffect(() => {
     listDevices()
       .then((d) => setDevices(d.devices || []))
@@ -34,6 +37,11 @@ export default function Queue() {
   useEffect(() => {
     if (selectedDevice?.token) setToken(selectedDevice.token);
   }, [selectedDevice?.token]);
+
+  useEffect(() => {
+    const found = devices.find((d) => d.token === token);
+    setSessionName(found?.session || '');
+  }, [token, devices]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -51,11 +59,35 @@ export default function Queue() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    const hasPending = jobs.some((j) => j.status === 'pending' || j.status === 'sending');
-    if (!hasPending) return;
-    const id = setInterval(load, 5000);
-    return () => clearInterval(id);
-  }, [jobs, load]);
+    if (!sessionName) return;
+
+    const onQueueJob = ({ sessionName: sn, job }) => {
+      if (sn !== sessionName) return;
+      setJobs((prev) => {
+        const idx = prev.findIndex((j) => j.id === job.id);
+        if (idx === -1) {
+          return [job, ...prev];
+        }
+        const next = [...prev];
+        next[idx] = job;
+        return next;
+      });
+    };
+
+    const onQueueUpdate = ({ sessionName: sn, jobs: newJobs }) => {
+      if (sn !== sessionName) return;
+      const filtered = filter === 'all' ? newJobs : newJobs.filter((j) => j.status === filter);
+      setJobs(filtered);
+    };
+
+    socket.on('queue:job',    onQueueJob);
+    socket.on('queue:update', onQueueUpdate);
+
+    return () => {
+      socket.off('queue:job',    onQueueJob);
+      socket.off('queue:update', onQueueUpdate);
+    };
+  }, [sessionName, filter]);
 
   const total    = jobs.length;
   const sent     = jobs.filter((j) => j.status === 'sent').length;
@@ -65,7 +97,6 @@ export default function Queue() {
 
   return (
     <div>
-      {/* Controls */}
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-body" style={{ padding: '16px 22px' }}>
           <div className="flex gap-3 items-center" style={{ flexWrap: 'wrap' }}>
@@ -103,7 +134,6 @@ export default function Queue() {
         </div>
       </div>
 
-      {/* Progress summary */}
       {token && total > 0 && (
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="card-body">
@@ -135,7 +165,6 @@ export default function Queue() {
         </div>
       )}
 
-      {/* Table */}
       <div className="card">
         <div className="card-header">
           <span className="card-title">
@@ -146,7 +175,7 @@ export default function Queue() {
           {pending > 0 && (
             <span className="flex items-center gap-2 text-sm text-muted">
               <span className="spinner" style={{ width: 14, height: 14 }} />
-              Auto-refreshing…
+              Live updates…
             </span>
           )}
         </div>

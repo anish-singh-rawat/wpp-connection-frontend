@@ -5,6 +5,7 @@ import {
   Inbox, MessageSquare,
 } from 'lucide-react';
 import { checkHealth } from '../api';
+import socket from '../socket';
 
 const NAV = [
   { label: 'Dashboard',    icon: LayoutDashboard, to: '/' },
@@ -16,20 +17,28 @@ const NAV = [
 ];
 
 export default function Sidebar() {
-  const [health, setHealth] = useState(null); 
+  const [health, setHealth] = useState(null);
 
   useEffect(() => {
-    const ping = async () => {
-      try {
-        await checkHealth();
-        setHealth('ok');
-      } catch {
-        setHealth('fail');
-      }
+    checkHealth()
+      .then(() => setHealth('ok'))
+      .catch(() => setHealth('fail'));
+
+    const onConnect    = () => setHealth('ok');
+    const onDisconnect = () => setHealth('fail');
+    const onHealth     = () => setHealth('ok');
+
+    if (socket.connected) setHealth('ok');
+
+    socket.on('connect',    onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('health',     onHealth);
+
+    return () => {
+      socket.off('connect',    onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('health',     onHealth);
     };
-    ping();
-    const id = setInterval(ping, 15000);
-    return () => clearInterval(id);
   }, []);
 
   return (

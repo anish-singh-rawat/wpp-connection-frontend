@@ -133,7 +133,6 @@ export default function BulkSend() {
             </div>
           )}
 
-          {/* Device selector */}
           <div className="form-group">
             <label className="form-label">Device</label>
             <select
@@ -151,7 +150,6 @@ export default function BulkSend() {
             </select>
           </div>
 
-          {/* Manual tab */}
           {tab === 'manual' && (
             <form onSubmit={handleManual}>
               <div className="form-group">
@@ -196,7 +194,6 @@ export default function BulkSend() {
             </form>
           )}
 
-          {/* CSV tab */}
           {tab === 'csv' && (
             <form onSubmit={handleCSV}>
               <div className="form-group">
