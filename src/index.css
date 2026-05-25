@@ -580,6 +580,12 @@ tbody tr:hover td { background: rgba(0,0,0,.015); }
 .spinner-lg { width: 36px; height: 36px; border-width: 3.5px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.45); }
+  70%  { box-shadow: 0 0 0 16px rgba(37, 211, 102, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
+}
+
 .alert {
   padding: 12px 16px;
   border-radius: var(--radius-sm);

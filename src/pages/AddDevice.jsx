@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 
 const STEPS = ['Create', 'Scan QR', 'Connected'];
 const QR_VALIDITY = 20;
+const REDIRECT_DELAY = 5;
 
 function waitingLabel(status) {
   if (!status || status === 'launching') return 'Starting WhatsApp session…';
@@ -14,6 +15,7 @@ function waitingLabel(status) {
   if (status === 'qr_pending') return 'Generating QR code…';
   if (status === 'qr_ready')   return 'QR code ready — loading…';
   if (status === 'retrying')   return 'Retrying…';
+  if (status === 'scanned')    return 'QR scanned — confirming with WhatsApp…';
   return 'Please wait…';
 }
 
@@ -29,15 +31,17 @@ export default function AddDevice() {
     return 'idle';
   });
 
-  const [label, setLabel]             = useState('');
-  const [device, setDevice]           = useState(prefill || null);
-  const [qrSrc, setQrSrc]             = useState('');
-  const [qrExpiry, setQrExpiry]       = useState(QR_VALIDITY);
-  const [waitStatus, setWaitStatus]   = useState('launching');
+  const [label, setLabel]           = useState('');
+  const [device, setDevice]         = useState(prefill || null);
+  const [qrSrc, setQrSrc]           = useState('');
+  const [qrExpiry, setQrExpiry]     = useState(QR_VALIDITY);
+  const [waitStatus, setWaitStatus] = useState('launching');
   const [activeToken, setActiveToken] = useState(prefill?.token || routeToken || null);
+  const [redirectIn, setRedirectIn] = useState(REDIRECT_DELAY);
 
-  const qrTimerRef = useRef(null);
-  const stageRef   = useRef(stage);
+  const qrTimerRef       = useRef(null);
+  const redirectTimerRef = useRef(null);
+  const stageRef         = useRef(stage);
   const qrWasShownRef = useRef(false);
 
   useEffect(() => { stageRef.current = stage; }, [stage]);
@@ -52,11 +56,36 @@ export default function AddDevice() {
     setQrExpiry(QR_VALIDITY);
     qrTimerRef.current = setInterval(() => {
       setQrExpiry((t) => {
-        if (t <= 1) { clearInterval(qrTimerRef.current); qrTimerRef.current = null; return 0; }
+        if (t <= 1) {
+          clearInterval(qrTimerRef.current);
+          qrTimerRef.current = null;
+          if (stageRef.current === 'qr') {
+            setStage('scanning');
+            setWaitStatus('scanned');
+          }
+          return 0;
+        }
         return t - 1;
       });
     }, 1000);
   }
+
+  function startRedirectCountdown(dev) {
+    clearInterval(redirectTimerRef.current);
+    setRedirectIn(REDIRECT_DELAY);
+    redirectTimerRef.current = setInterval(() => {
+      setRedirectIn((t) => {
+        if (t <= 1) {
+          clearInterval(redirectTimerRef.current);
+          redirectTimerRef.current = null;
+          navigate('/', { state: { connectedDevice: dev } });
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+  }
+
 
   const showQR = useCallback((qrDataUri) => {
     qrWasShownRef.current = true;
@@ -73,7 +102,7 @@ export default function AddDevice() {
     const onDeviceQR = ({ token, qr }) => {
       if (token !== activeToken) return;
       if (stageRef.current === 'connected') return;
-      console.log('[Socket] device:qr received');
+      console.log('[Socket] device:qr received | stage:', stageRef.current);
       showQR(qr);
     };
 
@@ -92,7 +121,8 @@ export default function AddDevice() {
         }
         stopQrTimer();
         setStage('connected');
-        toast.success('Device connected successfully!');
+        toast.success(`${device?.label || 'Device'} connected successfully!`);
+        startRedirectCountdown(device);
         return;
       }
 
@@ -101,8 +131,8 @@ export default function AddDevice() {
         setStage('error');
         return;
       }
-      
-      if (status === 'qr_ready' && stageRef.current !== 'qr') {
+
+      if (status === 'qr_ready' && (stageRef.current === 'waiting' || stageRef.current === 'scanning')) {
         showQR(`${getQRImageUrl(activeToken)}?t=${Date.now()}`);
       }
     };
@@ -119,7 +149,8 @@ export default function AddDevice() {
       }
       stopQrTimer();
       setStage('connected');
-      toast.success('Device connected successfully!');
+      toast.success(`${device?.label || 'Device'} connected successfully!`);
+      startRedirectCountdown(device);
     };
 
     socket.on('device:qr',        onDeviceQR);
@@ -136,7 +167,10 @@ export default function AddDevice() {
 
 
   useEffect(() => {
-    return () => { stopQrTimer(); };
+    return () => {
+      stopQrTimer();
+      clearInterval(redirectTimerRef.current);
+    };
   }, []);
 
 
@@ -159,6 +193,7 @@ export default function AddDevice() {
 
   function retry() {
     stopQrTimer();
+    clearInterval(redirectTimerRef.current);
     qrWasShownRef.current = false;
     setQrSrc('');
     setWaitStatus('launching');
@@ -236,6 +271,35 @@ export default function AddDevice() {
         </div>
       )}
 
+      {stage === 'scanning' && (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              <QrCode size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+              Confirming Connection
+            </span>
+            <span className="badge" style={{ background: 'rgba(251,191,36,.15)', color: '#f59e0b' }}>
+              <span className="badge-dot" style={{ background: '#f59e0b' }} />
+              Connecting…
+            </span>
+          </div>
+          <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: 'rgba(251,191,36,.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px',
+            }}>
+              <div className="spinner spinner-lg" style={{ borderTopColor: '#f59e0b', borderColor: 'rgba(251,191,36,.2)' }} />
+            </div>
+            <p style={{ fontWeight: 600, marginBottom: 8 }}>QR Scanned — Connecting to WhatsApp…</p>
+            <p className="text-muted text-sm">
+              This usually takes 5–15 seconds. Keep WhatsApp open on your phone.
+            </p>
+          </div>
+        </div>
+      )}
+
       {stage === 'qr' && (
         <div className="card">
           <div className="card-header">
@@ -292,27 +356,71 @@ export default function AddDevice() {
         </div>
       )}
 
+      {/* ── connected ────────────────────────────────────────────────────── */}
       {stage === 'connected' && (
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
+            {/* Animated success ring */}
             <div style={{
-              width: 72, height: 72, borderRadius: '50%',
+              width: 80, height: 80, borderRadius: '50%',
               background: 'rgba(37,211,102,.12)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               margin: '0 auto 20px',
+              animation: 'pulse 1.5s ease-in-out 2',
             }}>
-              <CheckCircle size={36} color="var(--green)" />
+              <CheckCircle size={40} color="var(--green)" />
             </div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Device Connected!</h2>
-            <p className="text-muted" style={{ marginBottom: 24 }}>
-              {device?.label || 'Your device'} is now ready to send and receive messages.
+
+            <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>
+              WhatsApp Connected!
+            </h2>
+            <p className="text-muted" style={{ marginBottom: 6 }}>
+              <strong style={{ color: 'var(--text)' }}>{device?.label || 'Your device'}</strong> is now
+              linked and ready to send &amp; receive messages.
             </p>
+
+            {/* Redirect countdown */}
+            <p className="text-muted text-sm" style={{ marginBottom: 28 }}>
+              Redirecting to Dashboard in{' '}
+              <strong style={{ color: 'var(--green)' }}>{redirectIn}s</strong>…
+            </p>
+
+            {/* Progress bar */}
+            <div style={{
+              height: 4, borderRadius: 2,
+              background: 'var(--border)',
+              overflow: 'hidden',
+              marginBottom: 28,
+              maxWidth: 320,
+              margin: '0 auto 28px',
+            }}>
+              <div style={{
+                height: '100%',
+                borderRadius: 2,
+                background: 'var(--green)',
+                width: `${((REDIRECT_DELAY - redirectIn) / REDIRECT_DELAY) * 100}%`,
+                transition: 'width 1s linear',
+              }} />
+            </div>
+
             <div className="flex gap-3" style={{ justifyContent: 'center' }}>
-              <button className="btn btn-primary" onClick={() => navigate('/send', { state: { device } })}>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  clearInterval(redirectTimerRef.current);
+                  navigate('/send', { state: { device } });
+                }}
+              >
                 Send Message
               </button>
-              <button className="btn btn-secondary" onClick={() => navigate('/')}>
-                Dashboard
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  clearInterval(redirectTimerRef.current);
+                  navigate('/');
+                }}
+              >
+                Go to Dashboard
               </button>
             </div>
           </div>
