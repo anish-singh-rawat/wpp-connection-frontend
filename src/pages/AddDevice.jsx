@@ -6,8 +6,7 @@ import socket from '../socket';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Create', 'Scan QR', 'Connected'];
-const QR_VALIDITY = 20;
-const REDIRECT_DELAY = 5;
+const REDIRECT_DELAY = 4; // seconds before auto-navigating to /send
 
 function waitingLabel(status) {
   if (!status || status === 'launching') return 'Starting WhatsApp session…';
@@ -15,7 +14,6 @@ function waitingLabel(status) {
   if (status === 'qr_pending') return 'Generating QR code…';
   if (status === 'qr_ready')   return 'QR code ready — loading…';
   if (status === 'retrying')   return 'Retrying…';
-  if (status === 'scanned')    return 'QR scanned — confirming with WhatsApp…';
   return 'Please wait…';
 }
 
@@ -25,50 +23,34 @@ export default function AddDevice() {
   const location = useLocation();
   const prefill = location.state?.device || null;
 
+  // Determine initial stage from the device status we already know about.
+  // If the backend already says qr_ready, jump straight to 'qr' — don't show the spinner.
   const [stage, setStage] = useState(() => {
     if (prefill?.status === 'connected') return 'connected';
-    if (prefill || routeToken) return 'waiting';
+    if (prefill?.status === 'qr_ready')  return 'qr';   // ← show QR immediately
+    if (prefill || routeToken)           return 'waiting';
     return 'idle';
   });
 
-  const [label, setLabel]           = useState('');
-  const [device, setDevice]         = useState(prefill || null);
-  const [qrSrc, setQrSrc]           = useState('');
-  const [qrExpiry, setQrExpiry]     = useState(QR_VALIDITY);
-  const [waitStatus, setWaitStatus] = useState('launching');
+  const [label, setLabel]             = useState('');
+  const [device, setDevice]           = useState(prefill || null);
+  // If we already know the QR image URL (prefill with qr_ready), seed it right away.
+  const [qrSrc, setQrSrc]             = useState(
+    prefill?.status === 'qr_ready' ? `${getQRImageUrl(prefill.token)}?t=${Date.now()}` : ''
+  );
+  const [waitStatus, setWaitStatus]   = useState('launching');
   const [activeToken, setActiveToken] = useState(prefill?.token || routeToken || null);
-  const [redirectIn, setRedirectIn] = useState(REDIRECT_DELAY);
+  const [redirectIn, setRedirectIn]   = useState(REDIRECT_DELAY);
 
-  const qrTimerRef       = useRef(null);
   const redirectTimerRef = useRef(null);
   const stageRef         = useRef(stage);
-  const qrWasShownRef = useRef(false);
+  // True once the backend has sent at least one QR to this client.
+  // Guards against the premature device:connected that fires on session launch.
+  const qrWasShownRef = useRef(stage === 'qr'); // already true if we seeded from prefill
 
   useEffect(() => { stageRef.current = stage; }, [stage]);
 
-  function stopQrTimer() {
-    clearInterval(qrTimerRef.current);
-    qrTimerRef.current = null;
-  }
-
-  function startQrExpiry() {
-    stopQrTimer();
-    setQrExpiry(QR_VALIDITY);
-    qrTimerRef.current = setInterval(() => {
-      setQrExpiry((t) => {
-        if (t <= 1) {
-          clearInterval(qrTimerRef.current);
-          qrTimerRef.current = null;
-          if (stageRef.current === 'qr') {
-            setStage('scanning');
-            setWaitStatus('scanned');
-          }
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
-  }
+  // ── Auto-redirect countdown after connection ───────────────────────────────
 
   function startRedirectCountdown(dev) {
     clearInterval(redirectTimerRef.current);
@@ -78,7 +60,7 @@ export default function AddDevice() {
         if (t <= 1) {
           clearInterval(redirectTimerRef.current);
           redirectTimerRef.current = null;
-          navigate('/', { state: { connectedDevice: dev } });
+          navigate('/send', { state: { device: dev } }); // ← go to /send, not dashboard
           return 0;
         }
         return t - 1;
@@ -86,26 +68,30 @@ export default function AddDevice() {
     }, 1000);
   }
 
+  // ── Show QR ────────────────────────────────────────────────────────────────
 
   const showQR = useCallback((qrDataUri) => {
     qrWasShownRef.current = true;
     setQrSrc(qrDataUri);
     setStage('qr');
-    startQrExpiry();
   }, []);
+
+  // ── Socket.IO listeners ────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!activeToken) return;
 
     socket.emit('join:device', activeToken);
 
+    // device:qr — backend sends the raw base64 QR data URI
     const onDeviceQR = ({ token, qr }) => {
       if (token !== activeToken) return;
       if (stageRef.current === 'connected') return;
-      console.log('[Socket] device:qr received | stage:', stageRef.current);
+      console.log('[Socket] device:qr | stage:', stageRef.current);
       showQR(qr);
     };
 
+    // device:status — covers all status transitions
     const onDeviceStatus = ({ token, status }) => {
       if (token !== activeToken) return;
       if (stageRef.current === 'connected') return;
@@ -116,27 +102,28 @@ export default function AddDevice() {
 
       if (status === 'connected') {
         if (!qrWasShownRef.current) {
+          // Backend fires this prematurely on session launch — ignore until QR was shown
           console.warn('[Socket] Ignoring premature connected — QR not yet shown');
           return;
         }
-        stopQrTimer();
         setStage('connected');
-        toast.success(`${device?.label || 'Device'} connected successfully!`);
+        toast.success(`${device?.label || 'Device'} connected!`);
         startRedirectCountdown(device);
         return;
       }
 
       if (status === 'retrying') {
-        stopQrTimer();
         setStage('error');
         return;
       }
 
-      if (status === 'qr_ready' && (stageRef.current === 'waiting' || stageRef.current === 'scanning')) {
+      // Backend says QR is ready but we haven't received device:qr yet — fetch image URL
+      if (status === 'qr_ready' && stageRef.current !== 'qr') {
         showQR(`${getQRImageUrl(activeToken)}?t=${Date.now()}`);
       }
     };
 
+    // device:connected — explicit connected event
     const onDeviceConnected = ({ token }) => {
       if (token !== activeToken) return;
       if (stageRef.current === 'connected') return;
@@ -147,9 +134,8 @@ export default function AddDevice() {
         console.warn('[Socket] Ignoring premature device:connected — QR not yet shown');
         return;
       }
-      stopQrTimer();
       setStage('connected');
-      toast.success(`${device?.label || 'Device'} connected successfully!`);
+      toast.success(`${device?.label || 'Device'} connected!`);
       startRedirectCountdown(device);
     };
 
@@ -163,16 +149,16 @@ export default function AddDevice() {
       socket.off('device:status',    onDeviceStatus);
       socket.off('device:connected', onDeviceConnected);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeToken, showQR]);
 
+  // ── Cleanup on unmount ─────────────────────────────────────────────────────
 
   useEffect(() => {
-    return () => {
-      stopQrTimer();
-      clearInterval(redirectTimerRef.current);
-    };
+    return () => { clearInterval(redirectTimerRef.current); };
   }, []);
 
+  // ── Create new device ──────────────────────────────────────────────────────
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -192,7 +178,6 @@ export default function AddDevice() {
   }
 
   function retry() {
-    stopQrTimer();
     clearInterval(redirectTimerRef.current);
     qrWasShownRef.current = false;
     setQrSrc('');
@@ -200,12 +185,15 @@ export default function AddDevice() {
     setStage('idle');
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   const stepIndex = (stage === 'idle' || stage === 'creating') ? 0
     : stage === 'connected' ? 2 : 1;
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
+
+      {/* Step indicator */}
       <div className="steps mb-6">
         {STEPS.map((s, i) => (
           <div key={s} className={`step${stepIndex === i ? ' active' : ''}${stepIndex > i ? ' done' : ''}`}>
@@ -217,6 +205,7 @@ export default function AddDevice() {
         ))}
       </div>
 
+      {/* ── idle ─────────────────────────────────────────────────────────── */}
       {stage === 'idle' && (
         <div className="card">
           <div className="card-header">
@@ -247,6 +236,7 @@ export default function AddDevice() {
         </div>
       )}
 
+      {/* ── creating ─────────────────────────────────────────────────────── */}
       {stage === 'creating' && (
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
@@ -256,6 +246,7 @@ export default function AddDevice() {
         </div>
       )}
 
+      {/* ── waiting — spinner until QR arrives via socket ────────────────── */}
       {stage === 'waiting' && (
         <div className="card">
           <div className="card-header">
@@ -271,35 +262,7 @@ export default function AddDevice() {
         </div>
       )}
 
-      {stage === 'scanning' && (
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">
-              <QrCode size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-              Confirming Connection
-            </span>
-            <span className="badge" style={{ background: 'rgba(251,191,36,.15)', color: '#f59e0b' }}>
-              <span className="badge-dot" style={{ background: '#f59e0b' }} />
-              Connecting…
-            </span>
-          </div>
-          <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
-            <div style={{
-              width: 72, height: 72, borderRadius: '50%',
-              background: 'rgba(251,191,36,.12)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 20px',
-            }}>
-              <div className="spinner spinner-lg" style={{ borderTopColor: '#f59e0b', borderColor: 'rgba(251,191,36,.2)' }} />
-            </div>
-            <p style={{ fontWeight: 600, marginBottom: 8 }}>QR Scanned — Connecting to WhatsApp…</p>
-            <p className="text-muted text-sm">
-              This usually takes 5–15 seconds. Keep WhatsApp open on your phone.
-            </p>
-          </div>
-        </div>
-      )}
-
+      {/* ── qr — show QR, stays until backend sends a new one or connected ─ */}
       {stage === 'qr' && (
         <div className="card">
           <div className="card-header">
@@ -322,18 +285,15 @@ export default function AddDevice() {
             <div className="qr-display">
               <img src={qrSrc} alt="Scan with WhatsApp" className="qr-img" />
             </div>
-            <div className="flex items-center gap-2" style={{ marginTop: 14, justifyContent: 'center' }}>
-              <span className="text-muted text-sm">
-                QR refreshes in{' '}
-                <strong style={{ color: qrExpiry <= 5 ? 'var(--red)' : 'var(--text)' }}>
-                  {qrExpiry}s
-                </strong>
-              </span>
-            </div>
+            {/* No countdown — QR stays until backend sends a new one or connected fires */}
+            <p className="text-muted text-sm" style={{ textAlign: 'center', marginTop: 14 }}>
+              Waiting for scan… The QR will refresh automatically if it expires.
+            </p>
           </div>
         </div>
       )}
 
+      {/* ── error ────────────────────────────────────────────────────────── */}
       {stage === 'error' && (
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
@@ -347,7 +307,7 @@ export default function AddDevice() {
             </div>
             <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Connection Failed</h2>
             <p className="text-muted" style={{ marginBottom: 24 }}>
-              ⚠️ Connection failed. Please try again.
+              Could not connect to WhatsApp. Please try again.
             </p>
             <button className="btn btn-primary" onClick={retry}>
               <RefreshCw size={15} style={{ marginRight: 6 }} /> Retry
@@ -360,7 +320,6 @@ export default function AddDevice() {
       {stage === 'connected' && (
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
-            {/* Animated success ring */}
             <div style={{
               width: 80, height: 80, borderRadius: '50%',
               background: 'rgba(37,211,102,.12)',
@@ -379,9 +338,8 @@ export default function AddDevice() {
               linked and ready to send &amp; receive messages.
             </p>
 
-            {/* Redirect countdown */}
-            <p className="text-muted text-sm" style={{ marginBottom: 28 }}>
-              Redirecting to Dashboard in{' '}
+            <p className="text-muted text-sm" style={{ marginBottom: 16 }}>
+              Redirecting to Send Message in{' '}
               <strong style={{ color: 'var(--green)' }}>{redirectIn}s</strong>…
             </p>
 
@@ -390,7 +348,6 @@ export default function AddDevice() {
               height: 4, borderRadius: 2,
               background: 'var(--border)',
               overflow: 'hidden',
-              marginBottom: 28,
               maxWidth: 320,
               margin: '0 auto 28px',
             }}>
@@ -411,7 +368,7 @@ export default function AddDevice() {
                   navigate('/send', { state: { device } });
                 }}
               >
-                Send Message
+                Send Message Now
               </button>
               <button
                 className="btn btn-secondary"
@@ -420,7 +377,7 @@ export default function AddDevice() {
                   navigate('/');
                 }}
               >
-                Go to Dashboard
+                Dashboard
               </button>
             </div>
           </div>
