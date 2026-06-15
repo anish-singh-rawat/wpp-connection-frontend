@@ -36,9 +36,17 @@ export const getQRStatusUrl = (token) => `${BASE_URL}/devices/${token}/qrcode/st
 export const getQRStatus   = (token) =>
   fetch(`${BASE_URL}/devices/${token}/qrcode/status`).then((r) => r.json());
 
-export const sendMessage = (token, number, message) => request('POST', `/devices/${token}/send`, { number, message });
+export const sendMessage = (token, number, message, link = '') => {
+  const body = { number, message };
+  if (link && link.trim()) body.link = link.trim();
+  return request('POST', `/devices/${token}/send`, body);
+};
 
-export const bulkSend = (token, numbers, message) => request('POST', `/devices/${token}/bulk-send`, { numbers, message });
+export const bulkSend = (token, numbers, message, link = '') => {
+  const body = { numbers, message };
+  if (link && link.trim()) body.link = link.trim();
+  return request('POST', `/devices/${token}/bulk-send`, body);
+};
 
 export const bulkSendCSV = (token, file, message) => {
   const fd = new FormData();

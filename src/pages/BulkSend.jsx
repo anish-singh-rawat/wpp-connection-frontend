@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Users, Upload, Send, CheckCircle, AlertCircle, FileText } from 'lucide-react';
+import { Users, Upload, Send, CheckCircle, AlertCircle, FileText, Link } from 'lucide-react';
 import { listDevices, bulkSend, bulkSendCSV, parseNumbers } from '../api';
 import toast from 'react-hot-toast';
 
@@ -14,6 +14,7 @@ export default function BulkSend() {
   const [token, setToken]     = useState(selectedDevice?.token || '');
   const [numbers, setNumbers] = useState('');
   const [message, setMessage] = useState('');
+  const [link, setLink]       = useState('');
   const [csvFile, setCsvFile]           = useState(null);
   const [csvHasMessage, setCsvHasMessage] = useState(false);
   const [loading, setLoading]           = useState(false);
@@ -39,7 +40,7 @@ export default function BulkSend() {
     setLoading(true);
     setResult(null);
     try {
-      const data = await bulkSend(token, parsed, message);
+      const data = await bulkSend(token, parsed, message, link);
       setResult({ success: true, data });
       toast.success(`${data.queued} messages queued!`);
       const dev = devices.find((d) => d.token === token);
@@ -182,6 +183,24 @@ export default function BulkSend() {
                 />
               </div>
 
+              <div className="form-group">
+                <label className="form-label">
+                  <Link size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  Link URL
+                  <span className="text-muted" style={{ fontWeight: 400, marginLeft: 6 }}>(optional)</span>
+                </label>
+                <input
+                  className="form-control"
+                  placeholder="https://example.com"
+                  value={link}
+                  onChange={(e) => setLink(e.target.value)}
+                  type="url"
+                />
+                <div className="form-hint">
+                  Appended to every message. WhatsApp shows a link preview automatically.
+                </div>
+              </div>
+
               <button
                 className="btn btn-primary btn-lg w-full"
                 type="submit"
@@ -265,6 +284,24 @@ export default function BulkSend() {
                   </div>
                 </div>
               )}
+
+              <div className="form-group">
+                <label className="form-label">
+                  <Link size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  Link URL
+                  <span className="text-muted" style={{ fontWeight: 400, marginLeft: 6 }}>(optional)</span>
+                </label>
+                <input
+                  className="form-control"
+                  placeholder="https://example.com"
+                  value={link}
+                  onChange={(e) => setLink(e.target.value)}
+                  type="url"
+                />
+                <div className="form-hint">
+                  Appended to every message. WhatsApp shows a link preview automatically.
+                </div>
+              </div>
 
               <button
                 className="btn btn-primary btn-lg w-full"

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { Send, CheckCircle, AlertCircle, Link } from 'lucide-react';
 import { listDevices, sendMessage, formatNumber } from '../api';
 import toast from 'react-hot-toast';
 
@@ -12,6 +12,7 @@ export default function SendMessage() {
   const [token, setToken]     = useState(selectedDevice?.token || '');
   const [number, setNumber]   = useState('');
   const [message, setMessage] = useState('');
+  const [link, setLink]       = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult]   = useState(null);
 
@@ -34,11 +35,12 @@ export default function SendMessage() {
     setLoading(true);
     setResult(null);
     try {
-      const data = await sendMessage(token, formatNumber(number), message);
+      const data = await sendMessage(token, formatNumber(number), message, link);
       setResult({ success: true, data });
       toast.success('Message sent!');
       setNumber('');
       setMessage('');
+      setLink('');
     } catch (err) {
       setResult({ success: false, error: err.message });
       toast.error(err.message);
@@ -110,6 +112,24 @@ export default function SendMessage() {
                 rows={4}
                 required
               />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                <Link size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                Link URL
+                <span className="text-muted" style={{ fontWeight: 400, marginLeft: 6 }}>(optional)</span>
+              </label>
+              <input
+                className="form-control"
+                placeholder="https://example.com"
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                type="url"
+              />
+              <div className="form-hint">
+                The link will be appended to your message. WhatsApp will show a preview automatically.
+              </div>
             </div>
 
             <button
