@@ -6,7 +6,7 @@ import socket from '../socket';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Create', 'Scan QR', 'Connected'];
-const REDIRECT_DELAY = 6;
+const REDIRECT_DELAY = 7;
 
 function waitingLabel(status) {
   if (!status || status === 'launching') return 'Starting WhatsApp session…';
