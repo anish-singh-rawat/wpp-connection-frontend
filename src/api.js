@@ -42,10 +42,28 @@ export const sendMessage = (token, number, message, link = '') => {
   return request('POST', `/devices/${token}/send`, body);
 };
 
+export const sendMediaMessage = (token, number, mediaFile, message = '', link = '') => {
+  const fd = new FormData();
+  fd.append('media', mediaFile);
+  fd.append('number', number);
+  if (message.trim()) fd.append('message', message.trim());
+  if (link.trim())    fd.append('link', link.trim());
+  return request('POST', `/devices/${token}/send-media`, fd, true);
+};
+
 export const bulkSend = (token, numbers, message, link = '') => {
   const body = { numbers, message };
   if (link && link.trim()) body.link = link.trim();
   return request('POST', `/devices/${token}/bulk-send`, body);
+};
+
+export const bulkSendMedia = (token, numbers, mediaFile, message = '', link = '') => {
+  const fd = new FormData();
+  fd.append('media', mediaFile);
+  fd.append('numbers', JSON.stringify(numbers));
+  if (message.trim()) fd.append('message', message.trim());
+  if (link.trim())    fd.append('link', link.trim());
+  return request('POST', `/devices/${token}/bulk-send-media`, fd, true);
 };
 
 export const bulkSendCSV = (token, file, message) => {

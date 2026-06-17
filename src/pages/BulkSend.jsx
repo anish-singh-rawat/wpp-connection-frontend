@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Users, Upload, Send, CheckCircle, AlertCircle, FileText, Link } from 'lucide-react';
-import { listDevices, bulkSend, bulkSendCSV, parseNumbers } from '../api';
+import { Users, Upload, Send, CheckCircle, AlertCircle, FileText, Link, ImagePlus, X, FileVideo } from 'lucide-react';
+import { listDevices, bulkSend, bulkSendMedia, bulkSendCSV, parseNumbers } from '../api';
 import toast from 'react-hot-toast';
 
 export default function BulkSend() {
   const location = useLocation();
   const navigate = useNavigate();
   const selectedDevice = location.state?.device || null;
+  const fileInputRef   = useRef(null);
 
   const [tab, setTab]         = useState('manual');
   const [devices, setDevices] = useState([]);
@@ -15,10 +16,16 @@ export default function BulkSend() {
   const [numbers, setNumbers] = useState('');
   const [message, setMessage] = useState('');
   const [link, setLink]       = useState('');
-  const [csvFile, setCsvFile]           = useState(null);
+  const [mediaFile, setMediaFile]         = useState(null);
+  const [mediaPreview, setMediaPreview]   = useState(null);
+  const [csvFile, setCsvFile]             = useState(null);
   const [csvHasMessage, setCsvHasMessage] = useState(false);
-  const [loading, setLoading]           = useState(false);
-  const [result, setResult]             = useState(null);
+  const [loading, setLoading]             = useState(false);
+  const [result, setResult]               = useState(null);
+
+  useEffect(() => {
+    return () => { if (mediaPreview) URL.revokeObjectURL(mediaPreview); };
+  }, [mediaPreview]);
 
   useEffect(() => {
     listDevices()
@@ -35,12 +42,17 @@ export default function BulkSend() {
     if (!token) return toast.error('Select a device.');
     const parsed = parseNumbers(numbers);
     if (parsed.length === 0) return toast.error('Enter at least one valid number.');
-    if (!message.trim()) return toast.error('Enter a message.');
+    if (!mediaFile && !message.trim()) return toast.error('Enter a message or attach a media file.');
 
     setLoading(true);
     setResult(null);
     try {
-      const data = await bulkSend(token, parsed, message, link);
+      let data;
+      if (mediaFile) {
+        data = await bulkSendMedia(token, parsed, mediaFile, message, link);
+      } else {
+        data = await bulkSend(token, parsed, message, link);
+      }
       setResult({ success: true, data });
       toast.success(`${data.queued} messages queued!`);
       const dev = devices.find((d) => d.token === token);
@@ -51,6 +63,21 @@ export default function BulkSend() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleMediaFileChange = (file) => {
+    if (!file) return;
+    if (file.size > 16 * 1024 * 1024) { toast.error('File too large. Max 16 MB.'); return; }
+    setMediaFile(file);
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMediaPreview(URL.createObjectURL(file));
+  };
+
+  const clearMedia = () => {
+    setMediaFile(null);
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMediaPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleCsvFileChange = (file) => {
@@ -172,14 +199,67 @@ export default function BulkSend() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Message</label>
+                <label className="form-label">
+                  <ImagePlus size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  Media
+                  <span className="text-muted" style={{ fontWeight: 400, marginLeft: 6 }}>(optional)</span>
+                </label>
+                {!mediaFile ? (
+                  <div
+                    style={{
+                      border: '2px dashed var(--border)', borderRadius: 'var(--radius-sm)',
+                      padding: '16px', textAlign: 'center', cursor: 'pointer', background: 'var(--input-bg)',
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => { e.preventDefault(); handleMediaFileChange(e.dataTransfer.files[0]); }}
+                  >
+                    <ImagePlus size={24} style={{ opacity: .4, marginBottom: 6 }} />
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>Click or drag to attach file</div>
+                    <div className="text-muted text-sm">Images · Videos · PDF · CSV/Excel · Max 16 MB</div>
+                  </div>
+                ) : (
+                  <div style={{
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    padding: '10px 14px', background: 'var(--input-bg)',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                  }}>
+                    {mediaFile.type.startsWith('image') ? (
+                      <img src={mediaPreview} alt="preview" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                    ) : (
+                      <div style={{
+                        width: 48, height: 48, borderRadius: 4,
+                        background: (mediaFile.type === 'application/pdf' || mediaFile.name.endsWith('.csv') || mediaFile.name.endsWith('.pdf'))
+                          ? 'rgba(99,102,241,.1)' : 'rgba(37,211,102,.1)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        {(mediaFile.type === 'application/pdf' || mediaFile.name.endsWith('.csv') || mediaFile.name.endsWith('.pdf'))
+                          ? <FileText size={22} color="#6366f1" />
+                          : <FileVideo size={22} color="var(--green)" />}
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mediaFile.name}</div>
+                      <div className="text-muted text-sm">{(mediaFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                    </div>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={clearMedia}><X size={13} /></button>
+                  </div>
+                )}
+                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/3gpp,video/quicktime,application/pdf,.csv" style={{ display: 'none' }} onChange={(e) => handleMediaFileChange(e.target.files[0])} />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  {mediaFile ? 'Caption' : 'Message'}
+                  {mediaFile && <span className="text-muted" style={{ fontWeight: 400, marginLeft: 6 }}>(optional)</span>}
+                </label>
                 <textarea
                   className="form-control"
-                  placeholder="Type your message here…"
+                  placeholder={mediaFile ? 'Add a caption…' : 'Type your message here…'}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   rows={4}
-                  required
+                  required={!mediaFile}
                 />
               </div>
 
