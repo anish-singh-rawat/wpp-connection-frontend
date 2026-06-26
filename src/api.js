@@ -17,9 +17,27 @@ async function request(method, path, body, isFormData = false) {
     if (body) opts.body = JSON.stringify(body);
   }
   const res = await fetch(`${BASE_URL}${path}`, opts);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  return data;
+
+  if (!res.ok) {
+    // 413 from nginx/reverse-proxy returns HTML, not JSON — handle it explicitly
+    if (res.status === 413) {
+      throw new Error('File is too large for the server. Please use a file smaller than 16 MB.');
+    }
+    // Try to parse a JSON error body; fall back to a plain status message
+    let errMsg = `Request failed (HTTP ${res.status})`;
+    try {
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        errMsg = data.error || data.message || errMsg;
+      }
+    } catch (_) {
+      // ignore parse errors — use the fallback message above
+    }
+    throw new Error(errMsg);
+  }
+
+  return res.json();
 }
 
 export const checkHealth = () => request('GET', '/health');

@@ -23,6 +23,8 @@ export default function BulkSend() {
   const [loading, setLoading]             = useState(false);
   const [result, setResult]               = useState(null);
 
+  const MAX_MEDIA_BYTES = 16 * 1024 * 1024; // 16 MB — must match server upload limit
+
   useEffect(() => {
     return () => { if (mediaPreview) URL.revokeObjectURL(mediaPreview); };
   }, [mediaPreview]);
@@ -43,6 +45,13 @@ export default function BulkSend() {
     const parsed = parseNumbers(numbers);
     if (parsed.length === 0) return toast.error('Enter at least one valid number.');
     if (!mediaFile && !message.trim()) return toast.error('Enter a message or attach a media file.');
+
+    if (mediaFile && mediaFile.size > MAX_MEDIA_BYTES) {
+      return toast.error(
+        `File too large (${(mediaFile.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 16 MB.`,
+        { duration: 5000 }
+      );
+    }
 
     setLoading(true);
     setResult(null);
@@ -67,7 +76,13 @@ export default function BulkSend() {
 
   const handleMediaFileChange = (file) => {
     if (!file) return;
-    if (file.size > 16 * 1024 * 1024) { toast.error('File too large. Max 16 MB.'); return; }
+    if (file.size > MAX_MEDIA_BYTES) {
+      toast.error(
+        `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 16 MB.`,
+        { duration: 5000 }
+      );
+      return;
+    }
     setMediaFile(file);
     if (mediaPreview) URL.revokeObjectURL(mediaPreview);
     setMediaPreview(URL.createObjectURL(file));
