@@ -35,8 +35,9 @@ export default function Queue() {
   }, []);
 
   useEffect(() => {
-    if (selectedDevice?.token) setToken(selectedDevice.token);
-  }, [selectedDevice?.token]);
+    const dev = location.state?.device;
+    if (dev?.token) setToken(dev.token);
+  }, [location.state]);
 
   useEffect(() => {
     const found = devices.find((d) => d.token === token);

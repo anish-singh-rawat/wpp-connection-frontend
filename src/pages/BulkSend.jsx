@@ -61,8 +61,8 @@ export default function BulkSend() {
       }
       setResult({ success: true, data });
       toast.success(`${data.queued} messages queued!`);
-      const dev = devices.find((d) => d.token === token);
-      navigate('/queue', { state: { device: dev || null } });
+      const dev = devices.find((d) => d.token === token) || { token };
+      navigate('/queue', { state: { device: dev } });
     } catch (err) {
       setResult({ success: false, error: err.message });
       toast.error(err.message);
@@ -123,8 +123,8 @@ export default function BulkSend() {
       const data = await bulkSendCSV(token, csvFile, message);
       setResult({ success: true, data });
       toast.success(`${data.queued} messages queued from CSV!`);
-      const dev = devices.find((d) => d.token === token);
-      navigate('/queue', { state: { device: dev || null } });
+      const dev = devices.find((d) => d.token === token) || { token };
+      navigate('/queue', { state: { device: dev } });
     } catch (err) {
       setResult({ success: false, error: err.message });
       toast.error(err.message);
