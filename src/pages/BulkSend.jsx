@@ -4,6 +4,10 @@ import { Users, Upload, Send, CheckCircle, AlertCircle, FileText, Link, ImagePlu
 import { listDevices, bulkSend, bulkSendMedia, bulkSendCSV, parseNumbers } from '../api';
 import toast from 'react-hot-toast';
 
+// Keep this in sync with nginx client_max_body_size and multer fileSize limit
+const MAX_MEDIA_BYTES = 5 * 1024 * 1024; // 5 MB safe limit until nginx is updated on server
+const MAX_MEDIA_LABEL = '5 MB';
+
 export default function BulkSend() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -18,12 +22,11 @@ export default function BulkSend() {
   const [link, setLink]       = useState('');
   const [mediaFile, setMediaFile]         = useState(null);
   const [mediaPreview, setMediaPreview]   = useState(null);
+  const [mediaError, setMediaError]       = useState('');
   const [csvFile, setCsvFile]             = useState(null);
   const [csvHasMessage, setCsvHasMessage] = useState(false);
   const [loading, setLoading]             = useState(false);
   const [result, setResult]               = useState(null);
-
-  const MAX_MEDIA_BYTES = 16 * 1024 * 1024; // 16 MB — must match server upload limit
 
   useEffect(() => {
     return () => { if (mediaPreview) URL.revokeObjectURL(mediaPreview); };
@@ -45,13 +48,7 @@ export default function BulkSend() {
     const parsed = parseNumbers(numbers);
     if (parsed.length === 0) return toast.error('Enter at least one valid number.');
     if (!mediaFile && !message.trim()) return toast.error('Enter a message or attach a media file.');
-
-    if (mediaFile && mediaFile.size > MAX_MEDIA_BYTES) {
-      return toast.error(
-        `File too large (${(mediaFile.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 16 MB.`,
-        { duration: 5000 }
-      );
-    }
+    if (mediaError) return; // blocked by inline file error
 
     setLoading(true);
     setResult(null);
@@ -76,10 +73,15 @@ export default function BulkSend() {
 
   const handleMediaFileChange = (file) => {
     if (!file) return;
+    setMediaError('');
     if (file.size > MAX_MEDIA_BYTES) {
-      toast.error(
-        `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is 16 MB.`,
-        { duration: 5000 }
+      // Clear any previously accepted file
+      setMediaFile(null);
+      if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+      setMediaPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setMediaError(
+        `"${file.name}" is ${(file.size / 1024 / 1024).toFixed(1)} MB — exceeds the ${MAX_MEDIA_LABEL} limit. Please choose a smaller file.`
       );
       return;
     }
@@ -90,6 +92,7 @@ export default function BulkSend() {
 
   const clearMedia = () => {
     setMediaFile(null);
+    setMediaError('');
     if (mediaPreview) URL.revokeObjectURL(mediaPreview);
     setMediaPreview(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -219,7 +222,32 @@ export default function BulkSend() {
                   Media
                   <span className="text-muted" style={{ fontWeight: 400, marginLeft: 6 }}>(optional)</span>
                 </label>
-                {!mediaFile ? (
+
+                {/* ── Error state ── */}
+                {mediaError && (
+                  <div style={{
+                    border: '2px solid #ef4444',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '12px 14px',
+                    background: 'rgba(239,68,68,.07)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    marginBottom: 6,
+                  }}>
+                    <AlertCircle size={18} color="#ef4444" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: '#ef4444' }}>File too large</div>
+                      <div style={{ fontSize: 12, color: '#ef4444', marginTop: 3, lineHeight: 1.5 }}>{mediaError}</div>
+                    </div>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={clearMedia} style={{ flexShrink: 0 }}>
+                      <X size={13} /> Try again
+                    </button>
+                  </div>
+                )}
+
+                {/* ── Empty dropzone (shown when no file and no error) ── */}
+                {!mediaFile && !mediaError && (
                   <div
                     style={{
                       border: '2px dashed var(--border)', borderRadius: 'var(--radius-sm)',
@@ -231,9 +259,12 @@ export default function BulkSend() {
                   >
                     <ImagePlus size={24} style={{ opacity: .4, marginBottom: 6 }} />
                     <div style={{ fontWeight: 600, fontSize: 13 }}>Click or drag to attach file</div>
-                    <div className="text-muted text-sm">Images · Videos · PDF · CSV/Excel · Max 16 MB</div>
+                    <div className="text-muted text-sm">Images · Videos · PDF · Max {MAX_MEDIA_LABEL}</div>
                   </div>
-                ) : (
+                )}
+
+                {/* ── File preview ── */}
+                {mediaFile && !mediaError && (
                   <div style={{
                     border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
                     padding: '10px 14px', background: 'var(--input-bg)',
@@ -260,7 +291,14 @@ export default function BulkSend() {
                     <button type="button" className="btn btn-secondary btn-sm" onClick={clearMedia}><X size={13} /></button>
                   </div>
                 )}
-                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/3gpp,video/quicktime,application/pdf,.csv" style={{ display: 'none' }} onChange={(e) => handleMediaFileChange(e.target.files[0])} />
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/3gpp,video/quicktime,application/pdf,.csv"
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleMediaFileChange(e.target.files[0])}
+                />
               </div>
 
               <div className="form-group">
@@ -299,7 +337,7 @@ export default function BulkSend() {
               <button
                 className="btn btn-primary btn-lg w-full"
                 type="submit"
-                disabled={loading || !token}
+                disabled={loading || !token || !!mediaError}
               >
                 {loading
                   ? <><span className="spinner" /> Queuing…</>
@@ -351,10 +389,7 @@ export default function BulkSend() {
               </div>
 
               {csvHasMessage ? (
-                <div
-                  className="alert alert-success"
-                  style={{ marginBottom: 16, alignItems: 'flex-start' }}
-                >
+                <div className="alert alert-success" style={{ marginBottom: 16, alignItems: 'flex-start' }}>
                   <CheckCircle size={16} style={{ marginTop: 2, flexShrink: 0 }} />
                   <div>
                     <strong>Message column detected</strong>

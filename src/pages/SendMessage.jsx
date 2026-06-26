@@ -5,7 +5,9 @@ import { listDevices, sendMessage, sendMediaMessage, formatNumber } from '../api
 import toast from 'react-hot-toast';
 
 const ACCEPTED = 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/3gpp,video/quicktime,application/pdf,.csv';
-const MAX_SIZE  = 16 * 1024 * 1024; // 16 MB
+// Keep in sync with nginx client_max_body_size on the live server
+const MAX_SIZE       = 5 * 1024 * 1024; // 5 MB safe limit until nginx is updated
+const MAX_SIZE_LABEL = '5 MB';
 
 function FileTypeIcon({ mime, name }) {
   if (!mime && !name) return null;
@@ -28,15 +30,16 @@ export default function SendMessage() {
   const selectedDevice = location.state?.device || null;
   const fileInputRef   = useRef(null);
 
-  const [devices, setDevices] = useState([]);
-  const [token, setToken]     = useState(selectedDevice?.token || '');
-  const [number, setNumber]   = useState('');
-  const [message, setMessage] = useState('');
-  const [link, setLink]       = useState('');
-  const [mediaFile, setMediaFile] = useState(null);
-  const [preview, setPreview]     = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult]   = useState(null);
+  const [devices, setDevices]       = useState([]);
+  const [token, setToken]           = useState(selectedDevice?.token || '');
+  const [number, setNumber]         = useState('');
+  const [message, setMessage]       = useState('');
+  const [link, setLink]             = useState('');
+  const [mediaFile, setMediaFile]   = useState(null);
+  const [preview, setPreview]       = useState(null);
+  const [mediaError, setMediaError] = useState(''); // inline upload error
+  const [loading, setLoading]       = useState(false);
+  const [result, setResult]         = useState(null);
 
   useEffect(() => {
     listDevices()
@@ -48,15 +51,22 @@ export default function SendMessage() {
     if (selectedDevice?.token) setToken(selectedDevice.token);
   }, [selectedDevice?.token]);
 
-  // Cleanup object URL on unmount / file change
   useEffect(() => {
     return () => { if (preview) URL.revokeObjectURL(preview); };
   }, [preview]);
 
   const handleFileChange = (file) => {
     if (!file) return;
+    setMediaError('');
     if (file.size > MAX_SIZE) {
-      toast.error('File too large. Max 16 MB allowed.');
+      // reject — clear any previous file and show inline error
+      setMediaFile(null);
+      if (preview) URL.revokeObjectURL(preview);
+      setPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setMediaError(
+        `"${file.name}" is ${(file.size / 1024 / 1024).toFixed(1)} MB — exceeds the ${MAX_SIZE_LABEL} limit. Please choose a smaller file.`
+      );
       return;
     }
     setMediaFile(file);
@@ -65,6 +75,7 @@ export default function SendMessage() {
 
   const clearMedia = () => {
     setMediaFile(null);
+    setMediaError('');
     if (preview) URL.revokeObjectURL(preview);
     setPreview(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -72,9 +83,10 @@ export default function SendMessage() {
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!token)         return toast.error('Select a device first.');
-    if (!number.trim()) return toast.error('Enter a phone number.');
+    if (!token)          return toast.error('Select a device first.');
+    if (!number.trim())  return toast.error('Enter a phone number.');
     if (!mediaFile && !message.trim()) return toast.error('Enter a message or attach a media file.');
+    if (mediaError)      return; // blocked by inline file error
 
     setLoading(true);
     setResult(null);
@@ -162,7 +174,37 @@ export default function SendMessage() {
                 <span className="text-muted" style={{ fontWeight: 400, marginLeft: 6 }}>(optional)</span>
               </label>
 
-              {!mediaFile ? (
+              {/* ── Error state ── */}
+              {mediaError && (
+                <div style={{
+                  border: '2px solid #ef4444',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '12px 14px',
+                  background: 'rgba(239,68,68,.07)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  marginBottom: 6,
+                }}>
+                  <AlertCircle size={18} color="#ef4444" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: '#ef4444' }}>File too large</div>
+                    <div style={{ fontSize: 12, color: '#ef4444', marginTop: 3, lineHeight: 1.5 }}>{mediaError}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={clearMedia}
+                    title="Dismiss and choose another file"
+                    style={{ flexShrink: 0 }}
+                  >
+                    <X size={13} /> Try again
+                  </button>
+                </div>
+              )}
+
+              {/* ── Empty dropzone ── */}
+              {!mediaFile && !mediaError && (
                 <div
                   style={{
                     border: '2px dashed var(--border)',
@@ -175,18 +217,18 @@ export default function SendMessage() {
                   }}
                   onClick={() => fileInputRef.current?.click()}
                   onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    handleFileChange(e.dataTransfer.files[0]);
-                  }}
+                  onDrop={(e) => { e.preventDefault(); handleFileChange(e.dataTransfer.files[0]); }}
                 >
                   <ImagePlus size={28} style={{ opacity: .4, marginBottom: 8 }} />
                   <div style={{ fontWeight: 600, fontSize: 14 }}>Click or drag to attach file</div>
                   <div className="text-muted text-sm" style={{ marginTop: 4 }}>
-                    Images · Videos · PDF · CSV/Excel · Max 16 MB
+                    Images · Videos · PDF · CSV/Excel · Max {MAX_SIZE_LABEL}
                   </div>
                 </div>
-              ) : (
+              )}
+
+              {/* ── File preview ── */}
+              {mediaFile && !mediaError && (
                 <div style={{
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-sm)',
@@ -196,7 +238,6 @@ export default function SendMessage() {
                   alignItems: 'center',
                   gap: 10,
                 }}>
-                  {/* Preview */}
                   {mediaFile.type.startsWith('image') ? (
                     <img
                       src={preview}
@@ -276,7 +317,7 @@ export default function SendMessage() {
             <button
               className="btn btn-primary btn-lg w-full"
               type="submit"
-              disabled={loading || !token}
+              disabled={loading || !token || !!mediaError}
             >
               {loading
                 ? <><span className="spinner" /> Sending…</>
