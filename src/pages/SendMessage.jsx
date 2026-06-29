@@ -6,8 +6,8 @@ import toast from 'react-hot-toast';
 
 const ACCEPTED = 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/3gpp,video/quicktime,application/pdf,.csv';
 // Keep in sync with nginx client_max_body_size on the live server
-const MAX_SIZE       = 5 * 1024 * 1024; // 5 MB safe limit until nginx is updated
-const MAX_SIZE_LABEL = '5 MB';
+const MAX_SIZE       = 16 * 1024 * 1024; // 16 MB
+const MAX_SIZE_LABEL = '16 MB';
 
 function FileTypeIcon({ mime, name }) {
   if (!mime && !name) return null;

@@ -5,8 +5,8 @@ import { listDevices, bulkSend, bulkSendMedia, bulkSendCSV, parseNumbers } from 
 import toast from 'react-hot-toast';
 
 // Keep this in sync with nginx client_max_body_size and multer fileSize limit
-const MAX_MEDIA_BYTES = 5 * 1024 * 1024; // 5 MB safe limit until nginx is updated on server
-const MAX_MEDIA_LABEL = '5 MB';
+const MAX_MEDIA_BYTES = 16 * 1024 * 1024; // 16 MB
+const MAX_MEDIA_LABEL = '16 MB';
 
 export default function BulkSend() {
   const location = useLocation();
