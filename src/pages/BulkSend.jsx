@@ -4,7 +4,6 @@ import { Users, Upload, Send, CheckCircle, AlertCircle, FileText, Link, ImagePlu
 import { listDevices, bulkSend, bulkSendMedia, bulkSendCSV, parseNumbers } from '../api';
 import toast from 'react-hot-toast';
 
-// Keep this in sync with nginx client_max_body_size and multer fileSize limit
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024; // 16 MB
 const MAX_MEDIA_LABEL = '16 MB';
 
@@ -75,7 +74,6 @@ export default function BulkSend() {
     if (!file) return;
     setMediaError('');
     if (file.size > MAX_MEDIA_BYTES) {
-      // Clear any previously accepted file
       setMediaFile(null);
       if (mediaPreview) URL.revokeObjectURL(mediaPreview);
       setMediaPreview(null);

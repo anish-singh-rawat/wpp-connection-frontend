@@ -5,7 +5,6 @@ import { listDevices, sendMessage, sendMediaMessage, formatNumber } from '../api
 import toast from 'react-hot-toast';
 
 const ACCEPTED = 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/3gpp,video/quicktime,application/pdf,.csv';
-// Keep in sync with nginx client_max_body_size on the live server
 const MAX_SIZE       = 16 * 1024 * 1024; // 16 MB
 const MAX_SIZE_LABEL = '16 MB';
 
@@ -37,7 +36,7 @@ export default function SendMessage() {
   const [link, setLink]             = useState('');
   const [mediaFile, setMediaFile]   = useState(null);
   const [preview, setPreview]       = useState(null);
-  const [mediaError, setMediaError] = useState(''); // inline upload error
+  const [mediaError, setMediaError] = useState(''); 
   const [loading, setLoading]       = useState(false);
   const [result, setResult]         = useState(null);
 
@@ -59,7 +58,6 @@ export default function SendMessage() {
     if (!file) return;
     setMediaError('');
     if (file.size > MAX_SIZE) {
-      // reject — clear any previous file and show inline error
       setMediaFile(null);
       if (preview) URL.revokeObjectURL(preview);
       setPreview(null);
@@ -86,7 +84,7 @@ export default function SendMessage() {
     if (!token)          return toast.error('Select a device first.');
     if (!number.trim())  return toast.error('Enter a phone number.');
     if (!mediaFile && !message.trim()) return toast.error('Enter a message or attach a media file.');
-    if (mediaError)      return; // blocked by inline file error
+    if (mediaError)      return;
 
     setLoading(true);
     setResult(null);

@@ -72,7 +72,6 @@ export default function AddDevice() {
 
   const syncStatus = useCallback(async (tok) => {
     if (!tok) return;
-    // Don't overwrite a terminal state
     if (stageRef.current === 'connected' || stageRef.current === 'scanning') return;
     try {
       const data = await getQRStatus(tok);
