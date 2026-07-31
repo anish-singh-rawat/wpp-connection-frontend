@@ -5,6 +5,7 @@ import {
   deleteSubCustomer, suspendSubCustomer, activateSubCustomer,
   resetSubCustomerPassword,
 } from '../api';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 function CreateModal({ onClose, onCreated }) {
@@ -152,6 +153,9 @@ function ResetPasswordModal({ subCustomer, onClose }) {
 }
 
 export default function SubCustomers() {
+  const { role } = useAuth();
+  const isCustomer = role === 'CUSTOMER';
+
   const [subCustomers, setSubCustomers] = useState([]);
   const [loading, setLoading]           = useState(true);
   const [search, setSearch]             = useState('');
@@ -202,9 +206,9 @@ export default function SubCustomers() {
 
   return (
     <div>
-      {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={load} />}
-      {editTarget  && <EditModal subCustomer={editTarget} onClose={() => setEditTarget(null)} onUpdated={load} />}
-      {resetTarget && <ResetPasswordModal subCustomer={resetTarget} onClose={() => setResetTarget(null)} />}
+      {isCustomer && showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={load} />}
+      {isCustomer && editTarget  && <EditModal subCustomer={editTarget} onClose={() => setEditTarget(null)} onUpdated={load} />}
+      {isCustomer && resetTarget && <ResetPasswordModal subCustomer={resetTarget} onClose={() => setResetTarget(null)} />}
 
       <div className="card">
         <div className="card-header">
@@ -220,9 +224,11 @@ export default function SubCustomers() {
                 placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <button className="btn btn-secondary btn-sm" onClick={load}><RefreshCw size={14} /></button>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> Add Sub-Customer
-            </button>
+            {isCustomer && (
+              <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+                <Plus size={14} /> Add Sub-Customer
+              </button>
+            )}
           </div>
         </div>
 
@@ -232,9 +238,11 @@ export default function SubCustomers() {
           <div className="empty-state">
             <UserCog size={40} />
             <p>No sub-customers yet.</p>
-            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-              <Plus size={14} /> Add First Sub-Customer
-            </button>
+            {isCustomer && (
+              <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+                <Plus size={14} /> Add First Sub-Customer
+              </button>
+            )}
           </div>
         ) : (
           <div className="table-wrap">
@@ -245,7 +253,7 @@ export default function SubCustomers() {
                   <th>Email</th>
                   <th>Status</th>
                   <th>Created</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  {isCustomer && <th style={{ textAlign: 'right' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -260,18 +268,20 @@ export default function SubCustomers() {
                       </span>
                     </td>
                     <td className="text-muted text-sm">{new Date(sc.createdAt).toLocaleDateString()}</td>
-                    <td>
-                      <div className="flex gap-2" style={{ justifyContent: 'flex-end' }}>
-                        <button className="btn btn-secondary btn-sm btn-icon" title="Edit" onClick={() => setEditTarget(sc)}><Edit2 size={13} /></button>
-                        <button className="btn btn-secondary btn-sm btn-icon" title="Reset Password" onClick={() => setResetTarget(sc)}><RotateCcw size={13} /></button>
-                        <button className={`btn btn-sm btn-icon ${sc.status === 'active' ? 'btn-danger' : 'btn-secondary'}`}
-                          title={sc.status === 'active' ? 'Suspend' : 'Activate'}
-                          onClick={() => handleToggleStatus(sc)}>
-                          {sc.status === 'active' ? <XCircle size={13} /> : <CheckCircle size={13} />}
-                        </button>
-                        <button className="btn btn-danger btn-sm btn-icon" title="Delete" onClick={() => handleDelete(sc)}><Trash2 size={13} /></button>
-                      </div>
-                    </td>
+                    {isCustomer && (
+                      <td>
+                        <div className="flex gap-2" style={{ justifyContent: 'flex-end' }}>
+                          <button className="btn btn-secondary btn-sm btn-icon" title="Edit" onClick={() => setEditTarget(sc)}><Edit2 size={13} /></button>
+                          <button className="btn btn-secondary btn-sm btn-icon" title="Reset Password" onClick={() => setResetTarget(sc)}><RotateCcw size={13} /></button>
+                          <button className={`btn btn-sm btn-icon ${sc.status === 'active' ? 'btn-danger' : 'btn-secondary'}`}
+                            title={sc.status === 'active' ? 'Suspend' : 'Activate'}
+                            onClick={() => handleToggleStatus(sc)}>
+                            {sc.status === 'active' ? <XCircle size={13} /> : <CheckCircle size={13} />}
+                          </button>
+                          <button className="btn btn-danger btn-sm btn-icon" title="Delete" onClick={() => handleDelete(sc)}><Trash2 size={13} /></button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

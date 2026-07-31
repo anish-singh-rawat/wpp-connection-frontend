@@ -78,9 +78,7 @@ export default function Login() {
 
   return (
     <div className="login-root">
-      {/* ── Left panel — branding + feature list ── */}
       <div className="login-panel-left">
-        {/* Logo */}
         <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 480 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 48 }}>
             <div style={{
@@ -114,7 +112,6 @@ export default function Login() {
             operation from a single secure dashboard.
           </p>
 
-          {/* Feature list */}
           <div>
             {FEATURES.map((f) => (
               <div className="login-feature" key={f.title}>
@@ -127,7 +124,6 @@ export default function Login() {
             ))}
           </div>
 
-          {/* Bottom decoration */}
           <div style={{
             marginTop: 52,
             padding: '14px 20px',
@@ -151,10 +147,8 @@ export default function Login() {
         </div>
       </div>
 
-      {/* ── Right panel — login form ── */}
       <div className="login-panel-right">
         <div style={{ width: '100%', maxWidth: 380 }}>
-          {/* Mobile logo (hidden on desktop via CSS left panel) */}
           <div style={{ textAlign: 'center', marginBottom: 36 }}>
             <div style={{
               width: 52, height: 52,
@@ -177,7 +171,6 @@ export default function Login() {
             </p>
           </div>
 
-          {/* Error alert */}
           {error && (
             <div className="alert alert-error" style={{ marginBottom: 24 }}>
               <AlertCircle size={15} style={{ flexShrink: 0 }} />
@@ -185,7 +178,6 @@ export default function Login() {
             </div>
           )}
 
-          {/* Form */}
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label className="form-label" style={{ fontSize: 13 }}>Email address</label>
@@ -256,7 +248,6 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Divider */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 12,
             margin: '28px 0 20px',
@@ -266,7 +257,6 @@ export default function Login() {
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
 
-          {/* Help text */}
           <div style={{
             padding: '14px 16px',
             background: 'var(--input-bg)',
@@ -283,7 +273,6 @@ export default function Login() {
             </p>
           </div>
 
-          {/* Version */}
           <p style={{
             textAlign: 'center', marginTop: 28,
             fontSize: 11, color: 'var(--text-muted)', opacity: .6,

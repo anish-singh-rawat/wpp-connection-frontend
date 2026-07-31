@@ -1,25 +1,33 @@
 import { useState } from 'react';
-import { UserCircle, Lock, Save, AlertCircle, CheckCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { UserCircle, Lock, Save } from 'lucide-react';
 import { updateProfile, changePassword } from '../api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 export default function Profile() {
-  const { user, login, token } = useAuth();
+  const { user, login, logout, token } = useAuth();
+  const navigate = useNavigate();
 
-  const [name, setName]             = useState(user?.name || '');
+  const [name, setName]         = useState(user?.name || '');
   const [savingProfile, setSavingProfile] = useState(false);
-
-  const [pwForm, setPwForm]         = useState({ currentPassword: '', newPassword: '', confirm: '' });
-  const [savingPw, setSavingPw]     = useState(false);
+  const [pwForm, setPwForm]     = useState({ currentPassword: '', newPassword: '', confirm: '' });
+  const [savingPw, setSavingPw] = useState(false);
 
   const handleProfileSave = async (e) => {
     e.preventDefault();
+    if (!name.trim()) { toast.error('Name is required.'); return; }
     setSavingProfile(true);
     try {
-      await updateProfile(name);
-      login({ token, refreshToken: localStorage.getItem('wpp_refresh'), user: { ...user, name } });
-      toast.success('Profile updated!');
+      const res = await updateProfile(name.trim());
+      if (res.success) {
+        const updatedUser = { ...user, name: name.trim() };
+        localStorage.setItem('wpp_user', JSON.stringify(updatedUser));
+        login({ token, refreshToken: localStorage.getItem('wpp_refresh') || '', user: updatedUser });
+        toast.success('Profile updated!');
+      } else {
+        toast.error(res.error || 'Failed to update profile.');
+      }
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -39,9 +47,15 @@ export default function Profile() {
     }
     setSavingPw(true);
     try {
-      await changePassword(pwForm.currentPassword, pwForm.newPassword);
-      toast.success('Password changed!');
-      setPwForm({ currentPassword: '', newPassword: '', confirm: '' });
+      const res = await changePassword(pwForm.currentPassword, pwForm.newPassword);
+      if (res.success) {
+        toast.success('Password changed! Please sign in again.');
+        setPwForm({ currentPassword: '', newPassword: '', confirm: '' });
+        logout();
+        navigate('/login', { replace: true });
+      } else {
+        toast.error(res.error || 'Failed to change password.');
+      }
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -53,11 +67,11 @@ export default function Profile() {
     SUPER_ADMIN:  { bg: 'rgba(139,92,246,.12)', color: '#7c3aed', label: 'Super Admin' },
     CUSTOMER:     { bg: 'rgba(37,211,102,.12)', color: '#0a7a3e', label: 'Customer' },
     SUB_CUSTOMER: { bg: 'rgba(59,130,246,.12)', color: '#1d4ed8', label: 'Sub Customer' },
-  }[user?.role] || {};
+  }[user?.role] || { bg: 'transparent', color: 'var(--text-muted)', label: user?.role };
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
-      {/* Profile info card */}
+      {/* Profile card */}
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="card-header">
           <span className="card-title">
@@ -72,18 +86,27 @@ export default function Profile() {
           </span>
         </div>
         <div className="card-body">
-          <div className="form-group" style={{ marginBottom: 8 }}>
+          <div className="form-group">
             <label className="form-label">Email</label>
-            <input className="form-control" value={user?.email || ''} disabled
-              style={{ opacity: .7, cursor: 'not-allowed' }} />
+            <input
+              className="form-control"
+              value={user?.email || ''}
+              disabled
+              style={{ opacity: .65, cursor: 'not-allowed' }}
+            />
             <div className="form-hint">Email cannot be changed.</div>
           </div>
 
           <form onSubmit={handleProfileSave}>
             <div className="form-group">
               <label className="form-label">Name</label>
-              <input className="form-control" value={name}
-                onChange={(e) => setName(e.target.value)} required />
+              <input
+                className="form-control"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder="Your display name"
+              />
             </div>
             <button type="submit" className="btn btn-primary" disabled={savingProfile}>
               {savingProfile
@@ -106,25 +129,39 @@ export default function Profile() {
           <form onSubmit={handlePasswordSave}>
             <div className="form-group">
               <label className="form-label">Current Password</label>
-              <input className="form-control" type="password"
+              <input
+                className="form-control"
+                type="password"
                 value={pwForm.currentPassword}
                 onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })}
-                required autoComplete="current-password" />
+                required
+                autoComplete="current-password"
+              />
             </div>
             <div className="form-group">
               <label className="form-label">New Password</label>
-              <input className="form-control" type="password"
+              <input
+                className="form-control"
+                type="password"
                 value={pwForm.newPassword}
                 onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })}
-                required minLength={6} autoComplete="new-password" />
+                required
+                minLength={6}
+                autoComplete="new-password"
+              />
               <div className="form-hint">Minimum 6 characters.</div>
             </div>
             <div className="form-group">
               <label className="form-label">Confirm New Password</label>
-              <input className="form-control" type="password"
+              <input
+                className="form-control"
+                type="password"
                 value={pwForm.confirm}
                 onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
-                required minLength={6} autoComplete="new-password" />
+                required
+                minLength={6}
+                autoComplete="new-password"
+              />
             </div>
             <button type="submit" className="btn btn-primary" disabled={savingPw}>
               {savingPw

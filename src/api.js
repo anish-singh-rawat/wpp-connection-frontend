@@ -115,7 +115,7 @@ export const getQRImageUrl  = (token) => `${BASE_URL}/devices/${token}/qrcode/im
 export const getQRPageUrl   = (token) => `${BASE_URL}/devices/${token}/qrcode/page`;
 export const getQRStatusUrl = (token) => `${BASE_URL}/devices/${token}/qrcode/status`;
 export const getQRStatus    = (token) =>
-  fetch(`${BASE_URL}/devices/${token}/qrcode/status`, { headers: authHeaders() }).then((r) => r.json());
+  request('GET', `/devices/${token}/qrcode/status`);
 
 
 export const sendMessage = (token, number, message, link = '') => {
@@ -156,13 +156,13 @@ export const bulkSendCSV = (token, file, message) => {
 };
 
 export const getQueue    = (token, status = 'all') =>
-  fetch(`${BASE_URL}/devices/${token}/queue?status=${status}`, { headers: authHeaders() }).then((r) => r.json());
+  request('GET', `/devices/${token}/queue?status=${status}`);
 
 export const getJob      = (token, jobId) =>
-  fetch(`${BASE_URL}/devices/${token}/queue/${jobId}`, { headers: authHeaders() }).then((r) => r.json());
+  request('GET', `/devices/${token}/queue/${jobId}`);
 
 export const getMessages = (token, limit = 50) =>
-  fetch(`${BASE_URL}/devices/${token}/messages?limit=${limit}`, { headers: authHeaders() }).then((r) => r.json());
+  request('GET', `/devices/${token}/messages?limit=${limit}`);
 
 
 export const listCustomers   = (params = '') => request('GET',    `/customers${params ? '?' + params : ''}`);
@@ -194,7 +194,8 @@ export const enableMyToken    = ()     => request('POST', '/api-tokens/my/enable
 export const disableMyToken   = ()     => request('POST', '/api-tokens/my/disable');
 
 export const listAllTokens    = ()     => request('GET',  '/api-tokens');
-export const generateTokenFor = (id)   => request('POST', `/api-tokens/generate`,        { customerId: id });
+export const getTokenInfoFor  = (id)   => request('GET',  `/api-tokens/${id}`);
+export const generateTokenFor = (id)   => request('POST', `/api-tokens/${id}/generate`);
 export const regenerateTokenFor=(id)   => request('POST', `/api-tokens/${id}/regenerate`);
 export const enableTokenFor   = (id)   => request('POST', `/api-tokens/${id}/enable`);
 export const disableTokenFor  = (id)   => request('POST', `/api-tokens/${id}/disable`);

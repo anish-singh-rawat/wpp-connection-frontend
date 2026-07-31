@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, PlusCircle, Send, Users, ListOrdered,
   Inbox, MessageSquare, ShieldCheck, UserCircle, Key,
-  LogOut, Settings, UserCog,
+  LogOut, UserCog,
 } from 'lucide-react';
 import { checkHealth, logoutApi } from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -100,7 +100,6 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar">
-      {/* Logo */}
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">
           <MessageSquare size={20} />
@@ -111,9 +110,8 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* User info */}
       {user && (
-        <div style={{
+        <div className="sidebar-user-info" style={{
           padding: '12px 16px',
           borderBottom: '1px solid rgba(255,255,255,.06)',
           display: 'flex', alignItems: 'center', gap: 10,
@@ -155,6 +153,7 @@ export default function Sidebar() {
               key={item.to}
               to={item.to}
               end={item.to.split('/').length <= 2}
+              title={item.label}
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
             >
               <Icon size={18} />

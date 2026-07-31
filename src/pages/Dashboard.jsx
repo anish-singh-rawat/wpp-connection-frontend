@@ -2,15 +2,22 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Smartphone, CheckCircle, AlertCircle, Trash2, Send, ListOrdered, RefreshCw, PlusCircle } from 'lucide-react';
 import { listDevices, deleteDevice } from '../api';
+import { useAuth } from '../context/AuthContext';
+import { useRolePath } from '../hooks/useRolePath';
 import StatusBadge from '../components/StatusBadge';
 import socket from '../socket';
 import toast from 'react-hot-toast';
 
 export default function Dashboard() {
-  const navigate = useNavigate();
-  const [devices, setDevices] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const navigate  = useNavigate();
+  const rolePath  = useRolePath();
+  const { role }  = useAuth();
+
+  const [devices, setDevices]   = useState([]);
+  const [loading, setLoading]   = useState(true);
   const [deleting, setDeleting] = useState(null);
+
+  const isSuperAdmin = role === 'SUPER_ADMIN';
 
   const load = useCallback(async () => {
     try {
@@ -25,19 +32,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     load();
+
     const onDevicesUpdate = () => load();
-
-    const onDeviceStatus = ({ token, status, isReady }) => {
-      setDevices((prev) =>
-        prev.map((d) => (d.token === token ? { ...d, status, isReady } : d))
-      );
-    };
-
-    const onDeviceConnected = ({ token }) => {
-      setDevices((prev) =>
-        prev.map((d) => (d.token === token ? { ...d, status: 'connected', isReady: true } : d))
-      );
-    };
+    const onDeviceStatus  = ({ token, status, isReady }) =>
+      setDevices((prev) => prev.map((d) => (d.token === token ? { ...d, status, isReady } : d)));
+    const onDeviceConnected = ({ token }) =>
+      setDevices((prev) => prev.map((d) => (d.token === token ? { ...d, status: 'connected', isReady: true } : d)));
 
     socket.on('devices:update',   onDevicesUpdate);
     socket.on('device:status',    onDeviceStatus);
@@ -100,9 +100,11 @@ export default function Dashboard() {
             <button className="btn btn-secondary btn-sm" onClick={load}>
               <RefreshCw size={14} /> Refresh
             </button>
-            <button className="btn btn-primary btn-sm" onClick={() => navigate('/add-device')}>
-              <PlusCircle size={14} /> Add Device
-            </button>
+            {!isSuperAdmin && (
+              <button className="btn btn-primary btn-sm" onClick={() => navigate(rolePath('/add-device'))}>
+                <PlusCircle size={14} /> Add Device
+              </button>
+            )}
           </div>
         </div>
 
@@ -111,10 +113,16 @@ export default function Dashboard() {
         ) : devices.length === 0 ? (
           <div className="empty-state">
             <Smartphone size={48} />
-            <p>No devices yet. Add your first device to get started.</p>
-            <button className="btn btn-primary" onClick={() => navigate('/add-device')}>
-              <PlusCircle size={16} /> Add Device
-            </button>
+            <p>
+              {isSuperAdmin
+                ? 'No devices registered across any customer account.'
+                : 'No devices yet. Add your first device to get started.'}
+            </p>
+            {!isSuperAdmin && (
+              <button className="btn btn-primary" onClick={() => navigate(rolePath('/add-device'))}>
+                <PlusCircle size={16} /> Add Device
+              </button>
+            )}
           </div>
         ) : (
           <div className="card-body">
@@ -122,9 +130,7 @@ export default function Dashboard() {
               {devices.map((d) => (
                 <div key={d.token} className="device-card">
                   <div className="device-card-header">
-                    <div className="device-avatar">
-                      {(d.label || 'D')[0].toUpperCase()}
-                    </div>
+                    <div className="device-avatar">{(d.label || 'D')[0].toUpperCase()}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="device-name">{d.label || 'Unnamed Device'}</div>
                       <div className="device-token">{d.token.slice(0, 18)}…</div>
@@ -147,34 +153,36 @@ export default function Dashboard() {
                     <button
                       className="btn btn-primary btn-sm"
                       disabled={d.status !== 'connected'}
-                      onClick={() => navigate('/send', { state: { device: d } })}
+                      onClick={() => navigate(rolePath('/send'), { state: { device: d } })}
                     >
                       <Send size={13} /> Send
                     </button>
                     <button
                       className="btn btn-secondary btn-sm"
-                      onClick={() => navigate('/queue', { state: { device: d } })}
+                      onClick={() => navigate(rolePath('/queue'), { state: { device: d } })}
                     >
                       <ListOrdered size={13} /> Queue
                     </button>
-                    {d.status === 'qr_ready' && (
+                    {d.status === 'qr_ready' && !isSuperAdmin && (
                       <button
                         className="btn btn-secondary btn-sm"
-                        onClick={() => navigate(`/add-device/${d.token}`, { state: { device: d } })}
+                        onClick={() => navigate(rolePath(`/add-device/${d.token}`), { state: { device: d } })}
                       >
                         Scan QR
                       </button>
                     )}
-                    <button
-                      className="btn btn-danger btn-sm"
-                      disabled={deleting === d.token}
-                      onClick={() => handleDelete(d.token, d.label)}
-                      style={{ marginLeft: 'auto' }}
-                    >
-                      {deleting === d.token
-                        ? <span className="spinner" style={{ width: 13, height: 13 }} />
-                        : <Trash2 size={13} />}
-                    </button>
+                    {!isSuperAdmin && (
+                      <button
+                        className="btn btn-danger btn-sm"
+                        disabled={deleting === d.token}
+                        onClick={() => handleDelete(d.token, d.label)}
+                        style={{ marginLeft: 'auto' }}
+                      >
+                        {deleting === d.token
+                          ? <span className="spinner" style={{ width: 13, height: 13 }} />
+                          : <Trash2 size={13} />}
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

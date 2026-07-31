@@ -128,7 +128,6 @@ export default function SendMessage() {
           )}
 
           <form onSubmit={handleSend}>
-            {/* Device */}
             <div className="form-group">
               <label className="form-label">Device</label>
               <select
@@ -151,7 +150,6 @@ export default function SendMessage() {
               )}
             </div>
 
-            {/* Phone Number */}
             <div className="form-group">
               <label className="form-label">Phone Number</label>
               <input
@@ -164,7 +162,6 @@ export default function SendMessage() {
               <div className="form-hint">Include country code, digits only. E.g. 919800000000 for India.</div>
             </div>
 
-            {/* Media Upload */}
             <div className="form-group">
               <label className="form-label">
                 <ImagePlus size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
@@ -172,7 +169,7 @@ export default function SendMessage() {
                 <span className="text-muted" style={{ fontWeight: 400, marginLeft: 6 }}>(optional)</span>
               </label>
 
-              {/* ── Error state ── */}
+
               {mediaError && (
                 <div style={{
                   border: '2px solid #ef4444',
@@ -201,7 +198,7 @@ export default function SendMessage() {
                 </div>
               )}
 
-              {/* ── Empty dropzone ── */}
+
               {!mediaFile && !mediaError && (
                 <div
                   style={{
@@ -225,7 +222,7 @@ export default function SendMessage() {
                 </div>
               )}
 
-              {/* ── File preview ── */}
+
               {mediaFile && !mediaError && (
                 <div style={{
                   border: '1px solid var(--border)',
@@ -277,7 +274,6 @@ export default function SendMessage() {
               />
             </div>
 
-            {/* Message / Caption */}
             <div className="form-group">
               <label className="form-label">
                 {mediaFile ? 'Caption' : 'Message'}
@@ -293,7 +289,6 @@ export default function SendMessage() {
               />
             </div>
 
-            {/* Link */}
             <div className="form-group">
               <label className="form-label">
                 <Link size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />

@@ -688,3 +688,32 @@ tbody tr:hover td { background: rgba(0,0,0,.015); }
   .grid-2 { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── Additional responsive styles ── */
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .devices-grid { grid-template-columns: 1fr; }
+  .card-header { flex-wrap: wrap; gap: 8px; }
+  .card-header > div { flex-wrap: wrap; }
+  .topbar { padding: 0 16px; height: auto; min-height: 56px; flex-wrap: wrap; gap: 8px; padding-top: 10px; padding-bottom: 10px; }
+  .modal { margin: 16px; max-width: calc(100vw - 32px); }
+  .modal-body { padding: 16px; }
+  .modal-footer { padding: 12px 16px; }
+  .btn-lg { padding: 10px 18px; font-size: 13px; }
+  .page { padding: 12px; }
+}
+
+/* Ensure card-header action buttons wrap cleanly */
+.card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Sidebar user info collapses on mobile */
+@media (max-width: 768px) {
+  .sidebar-user-info { display: none; }
+  .nav-item { padding: 10px; justify-content: center; }
+  .nav-item svg { margin: 0; }
+}

@@ -2,14 +2,16 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Users, Upload, Send, CheckCircle, AlertCircle, FileText, Link, ImagePlus, X, FileVideo } from 'lucide-react';
 import { listDevices, bulkSend, bulkSendMedia, bulkSendCSV, parseNumbers } from '../api';
+import { useRolePath } from '../hooks/useRolePath';
 import toast from 'react-hot-toast';
 
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
 const MAX_MEDIA_LABEL = '16 MB';
 
 export default function BulkSend() {
-  const location = useLocation();
-  const navigate = useNavigate();
+  const location       = useLocation();
+  const navigate       = useNavigate();
+  const rolePath       = useRolePath();
   const selectedDevice = location.state?.device || null;
   const fileInputRef   = useRef(null);
 
@@ -61,7 +63,7 @@ export default function BulkSend() {
       setResult({ success: true, data });
       toast.success(`${data.queued} messages queued!`);
       const dev = devices.find((d) => d.token === token) || { token };
-      navigate('/queue', { state: { device: dev } });
+      navigate(rolePath('/queue'), { state: { device: dev } });
     } catch (err) {
       setResult({ success: false, error: err.message });
       toast.error(err.message);
@@ -122,7 +124,7 @@ export default function BulkSend() {
       setResult({ success: true, data });
       toast.success(`${data.queued} messages queued from CSV!`);
       const dev = devices.find((d) => d.token === token) || { token };
-      navigate('/queue', { state: { device: dev } });
+      navigate(rolePath('/queue'), { state: { device: dev } });
     } catch (err) {
       setResult({ success: false, error: err.message });
       toast.error(err.message);
@@ -165,7 +167,7 @@ export default function BulkSend() {
                     <button
                       className="btn btn-sm btn-secondary"
                       style={{ marginLeft: 8 }}
-                      onClick={() => navigate('/queue', { state: { device: devices.find((d) => d.token === token) || null } })}
+                      onClick={() => navigate(rolePath('/queue'), { state: { device: devices.find((d) => d.token === token) || null } })}
                     >
                       View Queue →
                     </button>
@@ -221,7 +223,6 @@ export default function BulkSend() {
                   <span className="text-muted" style={{ fontWeight: 400, marginLeft: 6 }}>(optional)</span>
                 </label>
 
-                {/* ── Error state ── */}
                 {mediaError && (
                   <div style={{
                     border: '2px solid #ef4444',
@@ -244,7 +245,6 @@ export default function BulkSend() {
                   </div>
                 )}
 
-                {/* ── Empty dropzone (shown when no file and no error) ── */}
                 {!mediaFile && !mediaError && (
                   <div
                     style={{
@@ -261,7 +261,6 @@ export default function BulkSend() {
                   </div>
                 )}
 
-                {/* ── File preview ── */}
                 {mediaFile && !mediaError && (
                   <div style={{
                     border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',

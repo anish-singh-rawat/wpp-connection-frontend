@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { CheckCircle, Smartphone, QrCode, Wifi, RefreshCw, AlertTriangle } from 'lucide-react';
 import { createDevice, getQRImageUrl, getQRStatus } from '../api';
+import { useRolePath } from '../hooks/useRolePath';
 import socket from '../socket';
 import toast from 'react-hot-toast';
 
@@ -18,9 +19,10 @@ function waitingLabel(status) {
 }
 
 export default function AddDevice() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const rolePath  = useRolePath();
   const { token: routeToken } = useParams();
-  const location = useLocation();
+  const location  = useLocation();
   const prefill = location.state?.device || null;
 
   const [stage, setStage] = useState(() => {
@@ -55,7 +57,7 @@ export default function AddDevice() {
         if (t <= 1) {
           clearInterval(redirectTimerRef.current);
           redirectTimerRef.current = null;
-          navigate('/send', { state: { device: dev } });
+          navigate(rolePath('/send'), { state: { device: dev } });
           return 0;
         }
         return t - 1;
@@ -204,7 +206,6 @@ export default function AddDevice() {
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
 
-      {/* Step indicator */}
       <div className="steps mb-6">
         {STEPS.map((s, i) => (
           <div key={s} className={`step${stepIndex === i ? ' active' : ''}${stepIndex > i ? ' done' : ''}`}>
@@ -216,7 +217,6 @@ export default function AddDevice() {
         ))}
       </div>
 
-      {/* ── idle ─────────────────────────────────────────────────────────── */}
       {stage === 'idle' && (
         <div className="card">
           <div className="card-header">
@@ -247,7 +247,6 @@ export default function AddDevice() {
         </div>
       )}
 
-      {/* ── creating ─────────────────────────────────────────────────────── */}
       {stage === 'creating' && (
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
@@ -257,7 +256,6 @@ export default function AddDevice() {
         </div>
       )}
 
-      {/* ── waiting ───────────────────────────────────────────────────────── */}
       {stage === 'waiting' && (
         <div className="card">
           <div className="card-header">
@@ -273,7 +271,6 @@ export default function AddDevice() {
         </div>
       )}
 
-      {/* ── qr ───────────────────────────────────────────────────────────── */}
       {stage === 'qr' && (
         <div className="card">
           <div className="card-header">
@@ -303,7 +300,6 @@ export default function AddDevice() {
         </div>
       )}
 
-      {/* ── scanning — QR scanned, WhatsApp loading on phone ─────────────── */}
       {stage === 'scanning' && (
         <div className="card">
           <div className="card-header">
@@ -343,7 +339,6 @@ export default function AddDevice() {
         </div>
       )}
 
-      {/* ── error ────────────────────────────────────────────────────────── */}
       {stage === 'error' && (
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
@@ -366,7 +361,6 @@ export default function AddDevice() {
         </div>
       )}
 
-      {/* ── connected ────────────────────────────────────────────────────── */}
       {stage === 'connected' && (
         <div className="card">
           <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
@@ -410,7 +404,7 @@ export default function AddDevice() {
                 className="btn btn-primary"
                 onClick={() => {
                   clearInterval(redirectTimerRef.current);
-                  navigate('/send', { state: { device } });
+                  navigate(rolePath('/send'), { state: { device } });
                 }}
               >
                 Send Message Now
@@ -419,7 +413,7 @@ export default function AddDevice() {
                 className="btn btn-secondary"
                 onClick={() => {
                   clearInterval(redirectTimerRef.current);
-                  navigate('/');
+                  navigate(rolePath('/'));
                 }}
               >
                 Dashboard
