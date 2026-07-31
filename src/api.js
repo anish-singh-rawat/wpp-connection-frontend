@@ -110,8 +110,14 @@ export const getDevice    = (token) => request('GET',    `/devices/${token}`);
 export const deleteDevice = (token) => request('DELETE', `/devices/${token}`);
 
 
-export const getSSEUrl      = (token) => `${BASE_URL}/devices/${token}/qrcode/events`;
-export const getQRImageUrl  = (token) => `${BASE_URL}/devices/${token}/qrcode/image`;
+export const getSSEUrl      = (token) => {
+  const jwt = getJwt();
+  return `${BASE_URL}/devices/${token}/qrcode/events${jwt ? `?token=${encodeURIComponent(jwt)}` : ''}`;
+};
+export const getQRImageUrl  = (token) => {
+  const jwt = getJwt();
+  return `${BASE_URL}/devices/${token}/qrcode/image${jwt ? `?token=${encodeURIComponent(jwt)}` : ''}`;
+};
 export const getQRPageUrl   = (token) => `${BASE_URL}/devices/${token}/qrcode/page`;
 export const getQRStatusUrl = (token) => `${BASE_URL}/devices/${token}/qrcode/status`;
 export const getQRStatus    = (token) =>

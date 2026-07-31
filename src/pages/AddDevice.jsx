@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { CheckCircle, Smartphone, QrCode, Wifi, RefreshCw, AlertTriangle } from 'lucide-react';
-import { createDevice, getQRImageUrl, getQRStatus } from '../api';
+import { createDevice, getQRStatus, BASE_URL } from '../api';
 import { useRolePath } from '../hooks/useRolePath';
 import socket from '../socket';
 import toast from 'react-hot-toast';
@@ -16,6 +16,19 @@ function waitingLabel(status) {
   if (status === 'qr_ready')   return 'QR code ready — loading…';
   if (status === 'retrying')   return 'Retrying…';
   return 'Please wait…';
+}
+
+async function fetchQRAsDataUrl(token) {
+  const jwt = localStorage.getItem('wpp_jwt') || '';
+  const url = `${BASE_URL}/devices/${token}/qrcode/image${jwt ? `?token=${encodeURIComponent(jwt)}` : ''}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
 }
 
 export default function AddDevice() {
@@ -34,11 +47,7 @@ export default function AddDevice() {
 
   const [label, setLabel]             = useState('');
   const [device, setDevice]           = useState(prefill || null);
-  const [qrSrc, setQrSrc]             = useState(
-    prefill?.status === 'qr_ready'
-      ? `${getQRImageUrl(prefill.token)}?t=${Date.now()}`
-      : ''
-  );
+  const [qrSrc, setQrSrc]             = useState('');
   const [waitStatus, setWaitStatus]   = useState('launching');
   const [activeToken, setActiveToken] = useState(prefill?.token || routeToken || null);
   const [redirectIn, setRedirectIn]   = useState(REDIRECT_DELAY);
@@ -78,19 +87,19 @@ export default function AddDevice() {
     try {
       const data = await getQRStatus(tok);
       if (data.status === 'connected' || data.isReady) {
-        if (!qrWasShownRef.current) return; 
+        if (!qrWasShownRef.current) return;
         setStage('connected');
         return;
       }
       if ((data.status === 'qr_ready' || data.hasQR) && stageRef.current !== 'qr') {
-        showQR(`${getQRImageUrl(tok)}?t=${Date.now()}`);
+        const dataUrl = await fetchQRAsDataUrl(tok);
+        if (dataUrl) showQR(dataUrl);
         return;
       }
       if (stageRef.current === 'waiting') {
         setWaitStatus(data.status || 'launching');
       }
-    } catch (_) {
-    }
+    } catch (_) {}
   }, [showQR]);
 
 
@@ -135,7 +144,9 @@ export default function AddDevice() {
         return;
       }
       if (status === 'qr_ready' && stageRef.current !== 'qr') {
-        showQR(`${getQRImageUrl(activeToken)}?t=${Date.now()}`);
+        fetchQRAsDataUrl(activeToken).then((dataUrl) => {
+          if (dataUrl) showQR(dataUrl);
+        });
       }
     };
 
@@ -182,7 +193,7 @@ export default function AddDevice() {
       const data = await createDevice(label.trim());
       const dev = data.device;
       setDevice(dev);
-      window.history.replaceState({ device: dev }, '', `/add-device/${dev.token}`);
+      window.history.replaceState({ device: dev }, '', rolePath(`/add-device/${dev.token}`));
       setActiveToken(dev.token);
       setWaitStatus('launching');
       setStage('waiting');
@@ -291,7 +302,9 @@ export default function AddDevice() {
               </span>
             </div>
             <div className="qr-display">
-              <img src={qrSrc} alt="Scan with WhatsApp" className="qr-img" />
+              {qrSrc
+                ? <img src={qrSrc} alt="Scan with WhatsApp" className="qr-img" />
+                : <div className="spinner spinner-lg" />}
             </div>
             <p className="text-muted text-sm" style={{ textAlign: 'center', marginTop: 14 }}>
               Waiting for scan… The QR refreshes automatically when it expires.

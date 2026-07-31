@@ -75,10 +75,9 @@ export default function Queue() {
       });
     };
 
-    const onQueueUpdate = ({ sessionName: sn, jobs: newJobs }) => {
+    const onQueueUpdate = ({ sessionName: sn }) => {
       if (sn !== sessionName) return;
-      const filtered = filter === 'all' ? newJobs : newJobs.filter((j) => j.status === filter);
-      setJobs(filtered);
+      load();
     };
 
     socket.on('queue:job',    onQueueJob);

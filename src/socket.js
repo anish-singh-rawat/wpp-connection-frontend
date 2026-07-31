@@ -1,10 +1,14 @@
 import { io } from 'socket.io-client';
 
-// Use the same base URL as the API — no separate fallback to a hardcoded IP
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8086';
+
+function getJwt() {
+  return localStorage.getItem('wpp_jwt') || '';
+}
 
 const socket = io(BASE_URL, {
   transports: ['websocket', 'polling'],
+  auth: (cb) => cb({ token: getJwt() }),
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
