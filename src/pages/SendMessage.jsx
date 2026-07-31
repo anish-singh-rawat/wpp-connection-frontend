@@ -5,7 +5,7 @@ import { listDevices, sendMessage, sendMediaMessage, formatNumber } from '../api
 import toast from 'react-hot-toast';
 
 const ACCEPTED = 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/3gpp,video/quicktime,application/pdf,.csv';
-const MAX_SIZE       = 16 * 1024 * 1024; // 16 MB
+const MAX_SIZE       = 16 * 1024 * 1024;
 const MAX_SIZE_LABEL = '16 MB';
 
 function FileTypeIcon({ mime, name }) {

@@ -133,7 +133,7 @@ export default function Inbox() {
         </div>
       </div>
 
-\      <div className="card">
+      <div className="card">
         <div className="card-header">
           <span className="card-title">
             <InboxIcon size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />

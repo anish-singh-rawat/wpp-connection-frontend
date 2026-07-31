@@ -4,7 +4,7 @@ import { Users, Upload, Send, CheckCircle, AlertCircle, FileText, Link, ImagePlu
 import { listDevices, bulkSend, bulkSendMedia, bulkSendCSV, parseNumbers } from '../api';
 import toast from 'react-hot-toast';
 
-const MAX_MEDIA_BYTES = 16 * 1024 * 1024; // 16 MB
+const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
 const MAX_MEDIA_LABEL = '16 MB';
 
 export default function BulkSend() {
@@ -47,7 +47,7 @@ export default function BulkSend() {
     const parsed = parseNumbers(numbers);
     if (parsed.length === 0) return toast.error('Enter at least one valid number.');
     if (!mediaFile && !message.trim()) return toast.error('Enter a message or attach a media file.');
-    if (mediaError) return; // blocked by inline file error
+    if (mediaError) return;
 
     setLoading(true);
     setResult(null);
