@@ -7,7 +7,6 @@ import socket from '../socket';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Create', 'Scan QR', 'Connected'];
-const REDIRECT_DELAY = 5;
 
 function waitingLabel(status) {
   if (!status || status === 'launching') return 'Starting WhatsApp session…';
@@ -50,29 +49,11 @@ export default function AddDevice() {
   const [qrSrc, setQrSrc]             = useState('');
   const [waitStatus, setWaitStatus]   = useState('launching');
   const [activeToken, setActiveToken] = useState(prefill?.token || routeToken || null);
-  const [redirectIn, setRedirectIn]   = useState(REDIRECT_DELAY);
 
-  const redirectTimerRef = useRef(null);
-  const stageRef         = useRef(stage);
-  const qrWasShownRef    = useRef(stage === 'qr');
+  const stageRef      = useRef(stage);
+  const qrWasShownRef = useRef(stage === 'qr');
 
   useEffect(() => { stageRef.current = stage; }, [stage]);
-
-  function startRedirectCountdown(dev) {
-    clearInterval(redirectTimerRef.current);
-    setRedirectIn(REDIRECT_DELAY);
-    redirectTimerRef.current = setInterval(() => {
-      setRedirectIn((t) => {
-        if (t <= 1) {
-          clearInterval(redirectTimerRef.current);
-          redirectTimerRef.current = null;
-          navigate(rolePath('/send'), { state: { device: dev } });
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
-  }
 
 
   const showQR = useCallback((qrDataUri) => {
@@ -87,8 +68,8 @@ export default function AddDevice() {
     try {
       const data = await getQRStatus(tok);
       if (data.status === 'connected' || data.isReady) {
-        if (!qrWasShownRef.current) return;
         setStage('connected');
+        navigate(rolePath('/send'), { state: { device } });
         return;
       }
       if ((data.status === 'qr_ready' || data.hasQR) && stageRef.current !== 'qr') {
@@ -120,18 +101,17 @@ export default function AddDevice() {
       if (token !== activeToken) return;
       if (stageRef.current === 'connected') return;
 
-      console.log('[Socket] device:status →', status, '| stage:', stageRef.current);
-
       setWaitStatus(status);
 
+      if (status === 'connecting' && qrWasShownRef.current) {
+        setStage('scanning');
+        return;
+      }
+
       if (status === 'connected') {
-        if (!qrWasShownRef.current) {
-          console.warn('[Socket] Ignoring premature connected — QR not yet shown');
-          return;
-        }
         setStage('connected');
         toast.success(`${device?.label || 'Device'} connected!`);
-        startRedirectCountdown(device);
+        navigate(rolePath('/send'), { state: { device } });
         return;
       }
 
@@ -139,10 +119,12 @@ export default function AddDevice() {
         setStage('error');
         return;
       }
+
       if (status.startsWith('loading') && qrWasShownRef.current && stageRef.current === 'qr') {
         setStage('scanning');
         return;
       }
+
       if (status === 'qr_ready' && stageRef.current !== 'qr') {
         fetchQRAsDataUrl(activeToken).then((dataUrl) => {
           if (dataUrl) showQR(dataUrl);
@@ -153,13 +135,9 @@ export default function AddDevice() {
     const onDeviceConnected = ({ token }) => {
       if (token !== activeToken) return;
       if (stageRef.current === 'connected') return;
-      if (!qrWasShownRef.current) {
-        console.warn('[Socket] Ignoring premature device:connected — QR not yet shown');
-        return;
-      }
       setStage('connected');
       toast.success(`${device?.label || 'Device'} connected!`);
-      startRedirectCountdown(device);
+      navigate(rolePath('/send'), { state: { device } });
     };
 
     const onReconnect = () => {
@@ -183,8 +161,10 @@ export default function AddDevice() {
   }, [activeToken, showQR, syncStatus]);
 
   useEffect(() => {
-    return () => { clearInterval(redirectTimerRef.current); };
-  }, []);
+    return () => {
+      socket.emit('leave:device', activeToken);
+    };
+  }, [activeToken]);
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -204,7 +184,6 @@ export default function AddDevice() {
   }
 
   function retry() {
-    clearInterval(redirectTimerRef.current);
     qrWasShownRef.current = false;
     setQrSrc('');
     setWaitStatus('launching');
@@ -317,37 +296,76 @@ export default function AddDevice() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">
-              <QrCode size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-              Establishing Connection
+              <Wifi size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+              Connecting to WhatsApp
             </span>
-            <span className="badge" style={{ background: 'rgba(251,191,36,.15)', color: '#f59e0b' }}>
-              <span className="badge-dot" style={{ background: '#f59e0b' }} />
+            <span className="badge" style={{ background: 'rgba(37,211,102,.15)', color: '#25d366' }}>
+              <span className="badge-dot" style={{ background: '#25d366', animation: 'pulse-dot 1.2s infinite' }} />
               Connecting…
             </span>
           </div>
-          <div className="card-body" style={{ textAlign: 'center', padding: '48px 24px' }}>
-            <div style={{
-              width: 72, height: 72, borderRadius: '50%',
-              background: 'rgba(251,191,36,.12)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 20px',
-            }}>
-              <div
-                className="spinner spinner-lg"
-                style={{ borderTopColor: '#f59e0b', borderColor: 'rgba(251,191,36,.25)' }}
-              />
+          <div className="card-body" style={{ padding: '40px 24px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28 }}>
+
+              {/* WhatsApp Web style green ring loader */}
+              <div style={{ position: 'relative', width: 96, height: 96 }}>
+                <svg width="96" height="96" viewBox="0 0 96 96" style={{ position: 'absolute', top: 0, left: 0 }}>
+                  <circle cx="48" cy="48" r="42" fill="none" stroke="rgba(37,211,102,.12)" strokeWidth="6" />
+                  <circle
+                    cx="48" cy="48" r="42"
+                    fill="none"
+                    stroke="#25d366"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                    strokeDasharray="264"
+                    strokeDashoffset="66"
+                    style={{ transformOrigin: '48px 48px', animation: 'wa-spin 1.4s linear infinite' }}
+                  />
+                </svg>
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+                    <path
+                      d="M19 2C9.6 2 2 9.6 2 19c0 3.0 .8 5.8 2.2 8.2L2 36l9.1-2.4C13.4 35 16.1 36 19 36c9.4 0 17-7.6 17-17S28.4 2 19 2z"
+                      fill="#25d366"
+                    />
+                    <path
+                      d="M27.5 22.4c-.4-.2-2.5-1.2-2.9-1.4-.4-.2-.7-.2-1 .2-.3.4-1.1 1.4-1.4 1.7-.3.3-.5.3-.9.1-.4-.2-1.8-.7-3.4-2.1-1.3-1.1-2.1-2.5-2.4-2.9-.2-.4 0-.6.2-.8.2-.2.4-.5.6-.7.2-.2.3-.4.4-.7.1-.3 0-.6-.1-.8-.1-.2-1-2.4-1.4-3.3-.4-.9-.8-.7-1-.7h-.9c-.3 0-.8.1-1.2.6-.4.5-1.6 1.5-1.6 3.7s1.6 4.3 1.8 4.6c.2.3 3.2 4.9 7.8 6.7 1.1.4 1.9.7 2.6.9 1.1.3 2.1.3 2.9.2.9-.1 2.7-1.1 3.1-2.2.4-1.1.4-2 .3-2.2-.1-.2-.4-.3-.8-.5z"
+                      fill="white"
+                    />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Status text */}
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>
+                  QR Code Scanned Successfully
+                </p>
+                <p className="text-muted text-sm">
+                  Connecting to WhatsApp… Keep the app open on your phone.
+                </p>
+                {waitStatus.startsWith('loading') && (
+                  <p style={{ color: '#25d366', fontSize: 13, fontWeight: 600, marginTop: 10 }}>
+                    Loading… {waitStatus.match(/\d+/)?.[0] ?? ''}%
+                  </p>
+                )}
+              </div>
+
+              {/* Green progress dots */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: '#25d366',
+                    animation: `bounce-dot 1.2s ease-in-out ${i * 0.2}s infinite`,
+                  }} />
+                ))}
+              </div>
+
             </div>
-            <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
-              QR Scanned — Establishing Connection…
-            </p>
-            <p className="text-muted text-sm">
-              WhatsApp is loading on your phone. Keep the app open.
-            </p>
-            {waitStatus.startsWith('loading') && (
-              <p className="text-muted text-sm" style={{ marginTop: 8 }}>
-                {`Loading WhatsApp Web… ${waitStatus.match(/\d+/)?.[0] ?? ''}%`}
-              </p>
-            )}
           </div>
         </div>
       )}
@@ -389,45 +407,20 @@ export default function AddDevice() {
             <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>
               WhatsApp Connected!
             </h2>
-            <p className="text-muted" style={{ marginBottom: 6 }}>
+            <p className="text-muted" style={{ marginBottom: 28 }}>
               <strong style={{ color: 'var(--text)' }}>{device?.label || 'Your device'}</strong> is now
               linked and ready to send &amp; receive messages.
             </p>
-            <p className="text-muted text-sm" style={{ marginBottom: 16 }}>
-              Redirecting to Send Message in{' '}
-              <strong style={{ color: 'var(--green)' }}>{redirectIn}s</strong>…
-            </p>
-            <div style={{
-              height: 4, borderRadius: 2,
-              background: 'var(--border)',
-              overflow: 'hidden',
-              maxWidth: 320,
-              margin: '0 auto 28px',
-            }}>
-              <div style={{
-                height: '100%',
-                borderRadius: 2,
-                background: 'var(--green)',
-                width: `${((REDIRECT_DELAY - redirectIn) / REDIRECT_DELAY) * 100}%`,
-                transition: 'width 1s linear',
-              }} />
-            </div>
             <div className="flex gap-3" style={{ justifyContent: 'center' }}>
               <button
                 className="btn btn-primary"
-                onClick={() => {
-                  clearInterval(redirectTimerRef.current);
-                  navigate(rolePath('/send'), { state: { device } });
-                }}
+                onClick={() => navigate(rolePath('/send'), { state: { device } })}
               >
                 Send Message Now
               </button>
               <button
                 className="btn btn-secondary"
-                onClick={() => {
-                  clearInterval(redirectTimerRef.current);
-                  navigate(rolePath('/'));
-                }}
+                onClick={() => navigate(rolePath('/'))}
               >
                 Dashboard
               </button>
