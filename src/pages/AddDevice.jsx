@@ -62,7 +62,7 @@ export default function AddDevice() {
     setStage('qr');
   }, []);
 
-  const syncStatus = useCallback(async (tok) => {
+  const syncStatus = useCallback(async (tok, forceQRFetch = false) => {
     if (!tok) return;
     if (stageRef.current === 'connected' || stageRef.current === 'scanning') return;
     try {
@@ -72,7 +72,7 @@ export default function AddDevice() {
         navigate(rolePath('/send'), { state: { device } });
         return;
       }
-      if ((data.status === 'qr_ready' || data.hasQR) && stageRef.current !== 'qr') {
+      if ((data.hasQR || data.status === 'qr_ready') && (stageRef.current !== 'qr' || forceQRFetch)) {
         const dataUrl = await fetchQRAsDataUrl(tok);
         if (dataUrl) showQR(dataUrl);
         return;
@@ -88,7 +88,9 @@ export default function AddDevice() {
     if (!activeToken) return;
 
     socket.emit('join:device', activeToken);
-    syncStatus(activeToken);
+
+    const needsQR = stageRef.current === 'qr' && !qrSrc;
+    syncStatus(activeToken, needsQR);
 
     const onDeviceQR = ({ token, qr }) => {
       if (token !== activeToken) return;
@@ -141,9 +143,8 @@ export default function AddDevice() {
     };
 
     const onReconnect = () => {
-      console.log('[Socket] Reconnected — re-joining room and syncing status');
       socket.emit('join:device', activeToken);
-      syncStatus(activeToken);
+      syncStatus(activeToken, stageRef.current === 'qr' && !qrSrc);
     };
 
     socket.on('device:qr',        onDeviceQR);
@@ -158,7 +159,7 @@ export default function AddDevice() {
       socket.off('device:connected', onDeviceConnected);
       socket.io.off('reconnect',     onReconnect);
     };
-  }, [activeToken, showQR, syncStatus]);
+  }, [activeToken, qrSrc, showQR, syncStatus]);
 
   useEffect(() => {
     return () => {
