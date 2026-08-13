@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, PlusCircle, Send, Users, ListOrdered,
-  Inbox, MessageSquare, ShieldCheck, UserCircle, Key,
+  MessageSquare, ShieldCheck, UserCircle, Key,
   LogOut, UserCog,
 } from 'lucide-react';
 import { checkHealth, logoutApi } from '../api';
@@ -22,7 +22,6 @@ const NAV_SUPER_ADMIN = [
   { label: 'Send Message',  icon: Send,            to: '/admin/send' },
   { label: 'Bulk Send',     icon: Users,           to: '/admin/bulk' },
   { label: 'Queue',         icon: ListOrdered,     to: '/admin/queue' },
-  { label: 'Inbox',         icon: Inbox,           to: '/admin/inbox' },
   { section: 'Account' },
   { label: 'Profile',       icon: UserCircle,      to: '/admin/profile' },
 ];
@@ -35,7 +34,6 @@ const NAV_CUSTOMER = [
   { label: 'Send Message',  icon: Send,            to: '/dashboard/send' },
   { label: 'Bulk Send',     icon: Users,           to: '/dashboard/bulk' },
   { label: 'Queue',         icon: ListOrdered,     to: '/dashboard/queue' },
-  { label: 'Inbox',         icon: Inbox,           to: '/dashboard/inbox' },
   { section: 'Management' },
   { label: 'Sub Customers', icon: UserCog,         to: '/dashboard/sub-customers' },
   { label: 'API Token',     icon: Key,             to: '/dashboard/api-token' },
@@ -51,7 +49,6 @@ const NAV_SUB_CUSTOMER = [
   { label: 'Send Message',  icon: Send,            to: '/sub-customer/send' },
   { label: 'Bulk Send',     icon: Users,           to: '/sub-customer/bulk' },
   { label: 'Queue',         icon: ListOrdered,     to: '/sub-customer/queue' },
-  { label: 'Inbox',         icon: Inbox,           to: '/sub-customer/inbox' },
   { section: 'Account' },
   { label: 'Profile',       icon: UserCircle,      to: '/sub-customer/profile' },
 ];

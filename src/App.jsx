@@ -5,30 +5,28 @@ import { useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
 
-import Login       from './pages/Login';
-import Dashboard   from './pages/Dashboard';
-import AddDevice   from './pages/AddDevice';
-import SendMessage from './pages/SendMessage';
-import BulkSend    from './pages/BulkSend';
-import Queue       from './pages/Queue';
-import Inbox       from './pages/Inbox';
-import Profile     from './pages/Profile';
+import Login        from './pages/Login';
+import Dashboard    from './pages/Dashboard';
+import AddDevice    from './pages/AddDevice';
+import SendMessage  from './pages/SendMessage';
+import BulkSend     from './pages/BulkSend';
+import Queue        from './pages/Queue';
+import Profile      from './pages/Profile';
 import SubCustomers from './pages/SubCustomers';
-import ApiToken    from './pages/ApiToken';
-import Customers   from './pages/admin/Customers';
+import ApiToken     from './pages/ApiToken';
+import Customers    from './pages/admin/Customers';
 
 const PAGE_META = {
-  '':             { title: 'Dashboard',     sub: 'Overview of your WhatsApp devices' },
-  'add-device':   { title: 'Add Device',    sub: 'Connect a new WhatsApp account via QR code' },
-  send:           { title: 'Send Message',  sub: 'Send a single WhatsApp message' },
-  bulk:           { title: 'Bulk Send',     sub: 'Send messages to multiple numbers at once' },
-  queue:          { title: 'Queue Monitor', sub: 'Track the status of your bulk message jobs' },
-  inbox:          { title: 'Inbox',         sub: 'View incoming messages from your devices' },
-  'sub-customers':{ title: 'Sub Customers', sub: 'Manage your sub-customer accounts' },
-  'api-token':    { title: 'API Token',     sub: 'Manage your external API access token' },
-  'api-tokens':   { title: 'API Tokens',    sub: 'Manage all customer API tokens' },
-  customers:      { title: 'Customers',     sub: 'Manage all customer accounts' },
-  profile:        { title: 'Profile',       sub: 'Update your account information' },
+  '':              { title: 'Dashboard',     sub: 'Overview of your WhatsApp devices' },
+  'add-device':    { title: 'Add Device',    sub: 'Connect a new WhatsApp account via QR code' },
+  send:            { title: 'Send Message',  sub: 'Send a single WhatsApp message' },
+  bulk:            { title: 'Bulk Send',     sub: 'Send messages to multiple numbers at once' },
+  queue:           { title: 'Queue Monitor', sub: 'Track the status of your bulk message jobs' },
+  'sub-customers': { title: 'Sub Customers', sub: 'Manage your sub-customer accounts' },
+  'api-token':     { title: 'API Token',     sub: 'Manage your external API access token' },
+  'api-tokens':    { title: 'API Tokens',    sub: 'Manage all customer API tokens' },
+  customers:       { title: 'Customers',     sub: 'Manage all customer accounts' },
+  profile:         { title: 'Profile',       sub: 'Update your account information' },
 };
 
 function getMeta(pathname) {
@@ -108,17 +106,16 @@ export default function App() {
             <AppLayout />
           </ProtectedRoute>
         }>
-          <Route index                  element={<Dashboard />} />
-          <Route path="customers"       element={<Customers />} />
-          <Route path="sub-customers"   element={<SubCustomers />} />
-          <Route path="api-tokens"      element={<ApiToken />} />
-          <Route path="add-device"      element={<AddDevice />} />
+          <Route index                    element={<Dashboard />} />
+          <Route path="customers"         element={<Customers />} />
+          <Route path="sub-customers"     element={<SubCustomers />} />
+          <Route path="api-tokens"        element={<ApiToken />} />
+          <Route path="add-device"        element={<AddDevice />} />
           <Route path="add-device/:token" element={<AddDevice />} />
-          <Route path="send"            element={<SendMessage />} />
-          <Route path="bulk"            element={<BulkSend />} />
-          <Route path="queue"           element={<Queue />} />
-          <Route path="inbox"           element={<Inbox />} />
-          <Route path="profile"         element={<Profile />} />
+          <Route path="send"              element={<SendMessage />} />
+          <Route path="bulk"              element={<BulkSend />} />
+          <Route path="queue"             element={<Queue />} />
+          <Route path="profile"           element={<Profile />} />
         </Route>
 
         {/* ── CUSTOMER ────────────────────────────────────────────────── */}
@@ -127,16 +124,15 @@ export default function App() {
             <AppLayout />
           </ProtectedRoute>
         }>
-          <Route index                  element={<Dashboard />} />
-          <Route path="sub-customers"   element={<SubCustomers />} />
-          <Route path="api-token"       element={<ApiToken />} />
-          <Route path="add-device"      element={<AddDevice />} />
+          <Route index                    element={<Dashboard />} />
+          <Route path="sub-customers"     element={<SubCustomers />} />
+          <Route path="api-token"         element={<ApiToken />} />
+          <Route path="add-device"        element={<AddDevice />} />
           <Route path="add-device/:token" element={<AddDevice />} />
-          <Route path="send"            element={<SendMessage />} />
-          <Route path="bulk"            element={<BulkSend />} />
-          <Route path="queue"           element={<Queue />} />
-          <Route path="inbox"           element={<Inbox />} />
-          <Route path="profile"         element={<Profile />} />
+          <Route path="send"              element={<SendMessage />} />
+          <Route path="bulk"              element={<BulkSend />} />
+          <Route path="queue"             element={<Queue />} />
+          <Route path="profile"           element={<Profile />} />
         </Route>
 
         {/* ── SUB_CUSTOMER ────────────────────────────────────────────── */}
@@ -145,14 +141,13 @@ export default function App() {
             <AppLayout />
           </ProtectedRoute>
         }>
-          <Route index                  element={<Dashboard />} />
-          <Route path="add-device"      element={<AddDevice />} />
+          <Route index                    element={<Dashboard />} />
+          <Route path="add-device"        element={<AddDevice />} />
           <Route path="add-device/:token" element={<AddDevice />} />
-          <Route path="send"            element={<SendMessage />} />
-          <Route path="bulk"            element={<BulkSend />} />
-          <Route path="queue"           element={<Queue />} />
-          <Route path="inbox"           element={<Inbox />} />
-          <Route path="profile"         element={<Profile />} />
+          <Route path="send"              element={<SendMessage />} />
+          <Route path="bulk"              element={<BulkSend />} />
+          <Route path="queue"             element={<Queue />} />
+          <Route path="profile"           element={<Profile />} />
         </Route>
 
         {/* Fallback */}
