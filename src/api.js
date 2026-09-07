@@ -161,11 +161,14 @@ export const bulkSendCSV = (token, file, message) => {
   return request('POST', `/devices/${token}/bulk-send/csv`, fd, true);
 };
 
-export const getQueue    = (token, status = 'all') =>
+export const getQueue       = (token, status = 'all') =>
   request('GET', `/devices/${token}/queue?status=${status}`);
 
-export const getJob      = (token, jobId) =>
+export const getJob         = (token, jobId) =>
   request('GET', `/devices/${token}/queue/${jobId}`);
+
+export const stopCampaign   = (token) =>
+  request('POST', `/devices/${token}/queue/stop`);
 
 export const getMessages = (token, limit = 50) =>
   request('GET', `/devices/${token}/messages?limit=${limit}`);

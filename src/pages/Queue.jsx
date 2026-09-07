@@ -1,18 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ListOrdered, RefreshCw, Clock, CheckCircle, XCircle, Loader, AlertTriangle } from 'lucide-react';
-import { listDevices, getQueue } from '../api';
+import {
+  ListOrdered, RefreshCw, Clock, CheckCircle, XCircle, Loader,
+  AlertTriangle, StopCircle,
+} from 'lucide-react';
+import { listDevices, getQueue, stopCampaign } from '../api';
 import StatusBadge from '../components/StatusBadge';
 import socket from '../socket';
 import toast from 'react-hot-toast';
 
-const STATUS_FILTERS = ['all', 'pending', 'sending', 'sent', 'failed'];
+const STATUS_FILTERS = ['all', 'pending', 'sending', 'sent', 'failed', 'cancelled'];
 
 function JobStatusIcon({ status }) {
-  if (status === 'sent')    return <CheckCircle size={15} color="var(--green)" />;
-  if (status === 'failed')  return <XCircle size={15} color="var(--red)" />;
-  if (status === 'sending') return <Loader size={15} color="var(--blue)" style={{ animation: 'spin .7s linear infinite' }} />;
-  if (status === 'pending') return <Clock size={15} color="#9ca3af" />;
+  if (status === 'sent')      return <CheckCircle size={15} color="var(--green)" />;
+  if (status === 'failed')    return <XCircle size={15} color="var(--red)" />;
+  if (status === 'cancelled') return <StopCircle size={15} color="#6b7280" />;
+  if (status === 'sending')   return <Loader size={15} color="var(--blue)" style={{ animation: 'spin .7s linear infinite' }} />;
+  if (status === 'pending')   return <Clock size={15} color="#9ca3af" />;
   return <AlertTriangle size={15} color="var(--yellow)" />;
 }
 
@@ -20,12 +24,12 @@ export default function Queue() {
   const location = useLocation();
   const selectedDevice = location.state?.device || null;
 
-  const [devices, setDevices] = useState([]);
-  const [token, setToken]     = useState(selectedDevice?.token || '');
-  const [filter, setFilter]   = useState('all');
-  const [jobs, setJobs]       = useState([]);
-  const [loading, setLoading] = useState(false);
-
+  const [devices, setDevices]         = useState([]);
+  const [token, setToken]             = useState(selectedDevice?.token || '');
+  const [filter, setFilter]           = useState('all');
+  const [jobs, setJobs]               = useState([]);
+  const [loading, setLoading]         = useState(false);
+  const [stopping, setStopping]       = useState(false);
   const [sessionName, setSessionName] = useState(selectedDevice?.session || '');
 
   useEffect(() => {
@@ -66,9 +70,7 @@ export default function Queue() {
       if (sn !== sessionName) return;
       setJobs((prev) => {
         const idx = prev.findIndex((j) => j.id === job.id);
-        if (idx === -1) {
-          return [job, ...prev];
-        }
+        if (idx === -1) return [job, ...prev];
         const next = [...prev];
         next[idx] = job;
         return next;
@@ -87,13 +89,35 @@ export default function Queue() {
       socket.off('queue:job',    onQueueJob);
       socket.off('queue:update', onQueueUpdate);
     };
-  }, [sessionName, filter]);
+  }, [sessionName, filter, load]);
 
-  const total    = jobs.length;
-  const sent     = jobs.filter((j) => j.status === 'sent').length;
-  const failed   = jobs.filter((j) => j.status === 'failed').length;
-  const pending  = jobs.filter((j) => j.status === 'pending' || j.status === 'sending').length;
-  const progress = total > 0 ? Math.round((sent / total) * 100) : 0;
+  const handleStop = async () => {
+    if (!token) return;
+    const confirmed = window.confirm(
+      'Are you sure you want to stop this campaign? All pending messages will be cancelled.'
+    );
+    if (!confirmed) return;
+
+    setStopping(true);
+    try {
+      const res = await stopCampaign(token);
+      toast.success(
+        `Campaign stopped. ${res.stoppedCount} pending message${res.stoppedCount !== 1 ? 's' : ''} cancelled.`
+      );
+      await load();
+    } catch (err) {
+      toast.error(err.message || 'Failed to stop campaign.');
+    } finally {
+      setStopping(false);
+    }
+  };
+
+  const total     = jobs.length;
+  const sent      = jobs.filter((j) => j.status === 'sent').length;
+  const failed    = jobs.filter((j) => j.status === 'failed').length;
+  const cancelled = jobs.filter((j) => j.status === 'cancelled').length;
+  const pending   = jobs.filter((j) => j.status === 'pending' || j.status === 'sending').length;
+  const progress  = total > 0 ? Math.round(((sent + failed + cancelled) / total) * 100) : 0;
 
   return (
     <div>
@@ -127,9 +151,30 @@ export default function Queue() {
               ))}
             </div>
 
-            <button className="btn btn-secondary btn-sm" onClick={load} disabled={!token}>
+            <button className="btn btn-secondary btn-sm" onClick={load} disabled={!token || loading}>
               <RefreshCw size={14} /> Refresh
             </button>
+
+            {pending > 0 && (
+              <button
+                id="stop-campaign-btn"
+                className="btn btn-sm"
+                onClick={handleStop}
+                disabled={stopping}
+                style={{
+                  background: 'rgba(239,68,68,.1)',
+                  color: '#dc2626',
+                  border: '1px solid rgba(239,68,68,.3)',
+                  fontWeight: 600,
+                  gap: 6,
+                }}
+              >
+                {stopping
+                  ? <><span className="spinner" style={{ width: 13, height: 13, borderTopColor: '#dc2626' }} /> Stopping…</>
+                  : <><StopCircle size={14} /> Stop Campaign</>
+                }
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -150,6 +195,12 @@ export default function Queue() {
                 <div className="stat-icon red"><XCircle size={18} /></div>
                 <div><div className="stat-value" style={{ fontSize: 20 }}>{failed}</div><div className="stat-label">Failed</div></div>
               </div>
+              {cancelled > 0 && (
+                <div className="stat-card" style={{ flex: '1 1 100px', padding: '12px 16px' }}>
+                  <div className="stat-icon" style={{ background: 'rgba(107,114,128,.12)', color: '#6b7280' }}><StopCircle size={18} /></div>
+                  <div><div className="stat-value" style={{ fontSize: 20 }}>{cancelled}</div><div className="stat-label">Cancelled</div></div>
+                </div>
+              )}
               <div className="stat-card" style={{ flex: '1 1 100px', padding: '12px 16px' }}>
                 <div className="stat-icon blue"><ListOrdered size={18} /></div>
                 <div><div className="stat-value" style={{ fontSize: 20 }}>{total}</div><div className="stat-label">Total</div></div>

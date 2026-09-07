@@ -344,6 +344,8 @@ body { min-height: 100vh; }
 .badge.failed .badge-dot { background: var(--red); }
 .badge.duplicate   { background: rgba(234,179,8,.12); color: #713f12; }
 .badge.duplicate .badge-dot { background: var(--yellow); }
+.badge.cancelled   { background: rgba(107,114,128,.12); color: #374151; }
+.badge.cancelled .badge-dot { background: #6b7280; }
 
 .btn {
   display: inline-flex;

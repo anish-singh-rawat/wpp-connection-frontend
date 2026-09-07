@@ -10,6 +10,7 @@ const STATUS_LABELS = {
   sent:         'Sent',
   failed:       'Failed',
   duplicate:    'Duplicate',
+  cancelled:    'Cancelled',
 };
 
 function statusClass(status = '') {
