@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   Key, RefreshCw, AlertCircle, Copy, Eye, EyeOff, Power,
-  ShieldCheck, Search, CheckCircle, XCircle,
+  ShieldCheck, Search, CheckCircle, XCircle, Smartphone, Check,
 } from 'lucide-react';
 import {
   getMyTokenInfo, generateMyToken, regenerateMyToken, enableMyToken, disableMyToken,
   listAllTokens, getTokenInfoFor, generateTokenFor, regenerateTokenFor, enableTokenFor, disableTokenFor,
+  listDevices,
 } from '../api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -18,16 +19,29 @@ function CustomerTokenView() {
   const [plainToken, setPlainToken]   = useState(null);
   const [showToken, setShowToken]     = useState(false);
 
+  const [devices, setDevices]         = useState([]);
+  const [copiedToken, setCopiedToken] = useState(null);
+
   const loadInfo = async () => {
     setLoading(true);
     try {
-      const res = await getMyTokenInfo();
-      setInfo(res.data);
+      const [res, devRes] = await Promise.allSettled([getMyTokenInfo(), listDevices()]);
+      if (res.status === 'fulfilled') setInfo(res.value.data);
+      else toast.error(res.reason?.message || 'Failed to load token info');
+
+      if (devRes.status === 'fulfilled') setDevices(devRes.value.devices || devRes.value.data?.devices || []);
     } catch (err) {
       toast.error(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const copyDeviceToken = (token) => {
+    navigator.clipboard.writeText(token);
+    setCopiedToken(token);
+    toast.success('Device Token copied!');
+    setTimeout(() => setCopiedToken(null), 2000);
   };
 
   useEffect(() => { loadInfo(); }, []);
@@ -172,6 +186,105 @@ function CustomerTokenView() {
                 ? '✓ External applications can call APIs using this token.'
                 : '⚠ Token is disabled. External calls will be rejected.'}
             </p>
+          )}
+        </div>
+      </div>
+
+      {/* ── WhatsApp Device Tokens Section ── */}
+      <div className="card" style={{ marginTop: 20 }}>
+        <div className="card-header">
+          <span className="card-title">
+            <Smartphone size={16} style={{ marginRight: 6 }} />
+            WhatsApp Device Tokens
+          </span>
+          <span className="badge pending">{devices.length} {devices.length === 1 ? 'Device' : 'Devices'}</span>
+        </div>
+        <div className="card-body">
+          <p className="text-muted text-sm" style={{ marginBottom: 16 }}>
+            Use this <strong>Device Token</strong> in your API URL path: <code>/devices/{'{deviceToken}'}/send</code> or in your environment variable <code>WHATSAPP_DEVICE_TOKEN</code>.
+          </p>
+
+          {devices.length === 0 ? (
+            <div style={{
+              background: 'var(--input-bg)',
+              border: '1px dashed var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '24px 16px',
+              textAlign: 'center',
+              color: 'var(--text-muted)',
+              fontSize: 13,
+            }}>
+              No devices created yet. Go to <strong>Add Device</strong> to register and scan a WhatsApp QR code.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {devices.map((device) => {
+                const isCopied = copiedToken === device.token;
+                return (
+                  <div
+                    key={device.token}
+                    style={{
+                      background: 'var(--input-bg)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '14px 16px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 600, fontSize: 14 }}>{device.label || 'Default Device'}</span>
+                        <span className={`badge ${device.status === 'connected' ? 'connected' : device.status === 'qr_ready' ? 'qr_ready' : 'disconnected'}`} style={{ fontSize: 11 }}>
+                          <span className="badge-dot" />
+                          {device.status || 'unknown'}
+                        </span>
+                      </div>
+                      {device.session && (
+                        <span className="text-muted text-xs mono" style={{ fontSize: 11 }}>
+                          {device.session}
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="text"
+                        readOnly
+                        value={device.token}
+                        className="mono"
+                        style={{
+                          flex: 1,
+                          fontSize: 12,
+                          padding: '7px 10px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--border)',
+                          background: 'var(--card-bg)',
+                          color: 'var(--text)',
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => copyDeviceToken(device.token)}
+                        title="Copy Device Token"
+                        style={{ minWidth: 80, justifyContent: 'center' }}
+                      >
+                        {isCopied ? (
+                          <>
+                            <Check size={14} style={{ color: 'var(--green)' }} />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={14} />
+                            Copy
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
